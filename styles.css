@@ -206,6 +206,14 @@
   font-style: italic;
 }
 
+.na-section-wc {
+  color: var(--text-faint);
+  font-size: 10px;
+  flex-shrink: 0;
+  min-width: 24px;
+  text-align: right;
+}
+
 .na-move-group {
   display: flex;
   flex-direction: column;

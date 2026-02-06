@@ -644,9 +644,17 @@ class AssemblerView extends ItemView {
       text: "Add Note",
     });
     addBtn.disabled = !project;
-    addBtn.addEventListener("click", () => {
+    addBtn.addEventListener("click", async () => {
       if (!project) return;
-      new NoteSuggestModal(this.app, project, (file) => {
+      const pFile = this.app.vault.getAbstractFileByPath(project.filePath);
+      const headings = new Set<string>();
+      if (pFile instanceof TFile) {
+        const c = await this.plugin.getFileContent(pFile);
+        for (const s of this.plugin.parseSections(c)) {
+          headings.add(s.heading);
+        }
+      }
+      new NoteSuggestModal(this.app, project, headings, (file) => {
         this.plugin.addNoteToProject(project, file);
       }).open();
     });
@@ -743,6 +751,12 @@ class AssemblerView extends ItemView {
         text: truncate(section.heading, 40),
       });
       title.setAttribute("title", section.heading);
+
+      // Per-section word count
+      const sectionText = contentLines.slice(section.startLine + 1, section.endLine).join(" ").trim();
+      const sectionWords = sectionText.split(/\s+/).filter((w) => w.length > 0).length;
+      card.createSpan({ cls: "na-section-wc", text: `${sectionWords}` });
+
       title.addEventListener("click", () => {
         // Scroll to section in editor
         const leaves = this.app.workspace.getLeavesOfType("markdown");
@@ -938,11 +952,13 @@ class AssemblerView extends ItemView {
 
 class NoteSuggestModal extends FuzzySuggestModal<TFile> {
   project: Project;
+  existingHeadings: Set<string>;
   onChoose: (file: TFile) => void;
 
-  constructor(app: App, project: Project, onChoose: (file: TFile) => void) {
+  constructor(app: App, project: Project, existingHeadings: Set<string>, onChoose: (file: TFile) => void) {
     super(app);
     this.project = project;
+    this.existingHeadings = existingHeadings;
     this.onChoose = onChoose;
     this.setPlaceholder("Search for a note to add...");
   }
@@ -954,6 +970,7 @@ class NoteSuggestModal extends FuzzySuggestModal<TFile> {
       .filter((f) => {
         if (f.path === this.project.filePath) return false;
         if (folder && !f.path.startsWith(folder + "/")) return false;
+        if (this.existingHeadings.has(f.basename)) return false;
         return true;
       });
   }
