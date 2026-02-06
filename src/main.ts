@@ -5,9 +5,12 @@ import {
   Modal,
   Notice,
   Plugin,
+  PluginSettingTab,
+  Setting,
   TFile,
   WorkspaceLeaf,
   debounce,
+  setIcon,
 } from "obsidian";
 
 // ── Data Model (minimal — file is the source of truth) ──────
@@ -19,14 +22,26 @@ interface Project {
   sourceFolder: string; // vault-relative folder path, "" = all
 }
 
+interface NoteAssemblerSettings {
+  pinnedSectionName: string;
+  maxRelatedNotes: number;
+}
+
+const DEFAULT_SETTINGS: NoteAssemblerSettings = {
+  pinnedSectionName: "Sources",
+  maxRelatedNotes: 6,
+};
+
 interface NoteAssemblerData {
   projects: Project[];
   activeProjectId: string | null;
+  settings: NoteAssemblerSettings;
 }
 
 const DEFAULT_DATA: NoteAssemblerData = {
   projects: [],
   activeProjectId: null,
+  settings: DEFAULT_SETTINGS,
 };
 
 const VIEW_TYPE = "note-assembler-view";
@@ -116,6 +131,8 @@ export default class NoteAssemblerPlugin extends Plugin {
       },
     });
 
+    this.addSettingTab(new NoteAssemblerSettingTab(this.app, this));
+
     // Watch for file changes to update sidebar
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
@@ -165,7 +182,7 @@ export default class NoteAssemblerPlugin extends Plugin {
           heading: match[1],
           startLine: i,
           endLine: lines.length,
-          pinned: match[1].trim() === "Sources",
+          pinned: match[1].trim() === this.data.settings.pinnedSectionName,
         };
       }
     }
@@ -240,12 +257,13 @@ export default class NoteAssemblerPlugin extends Plugin {
       const updatedSources = sourcesText.trimEnd() + `\n- [[${sourceFile.basename}]]`;
       newContent = beforeSources.trimEnd() + "\n\n" + newSection + "\n\n" + updatedSources + "\n";
     } else {
-      // No Sources section yet — add section + create Sources
+      // No pinned section yet — add section + create it
+      const pinnedName = this.data.settings.pinnedSectionName;
       newContent =
         content.trimEnd() +
         "\n\n" +
         newSection +
-        "\n\n---\n\n## Sources\n\n" +
+        `\n\n---\n\n## ${pinnedName}\n\n` +
         `- [[${sourceFile.basename}]]` +
         "\n";
     }
@@ -441,7 +459,8 @@ export default class NoteAssemblerPlugin extends Plugin {
           await this.setFileContent(projectFile, lines.join("\n"));
         }
       } else {
-        const newContent = content.trimEnd() + "\n\n---\n\n## Sources\n\n" + `- [[${safeName}]]` + "\n";
+        const pinnedName = this.data.settings.pinnedSectionName;
+        const newContent = content.trimEnd() + `\n\n---\n\n## ${pinnedName}\n\n` + `- [[${safeName}]]` + "\n";
         await this.setFileContent(projectFile, newContent);
       }
 
@@ -521,7 +540,8 @@ export default class NoteAssemblerPlugin extends Plugin {
             await this.setFileContent(projectFile, lines.join("\n"));
           }
         } else {
-          const newContent = content.trimEnd() + "\n\n---\n\n## Sources\n\n" + `- [[${safeName}]]` + "\n";
+          const pinnedName = this.data.settings.pinnedSectionName;
+          const newContent = content.trimEnd() + `\n\n---\n\n## ${pinnedName}\n\n` + `- [[${safeName}]]` + "\n";
           await this.setFileContent(projectFile, newContent);
         }
       }
@@ -540,7 +560,10 @@ export default class NoteAssemblerPlugin extends Plugin {
   }
 
   async loadPluginData() {
-    this.data = Object.assign({}, DEFAULT_DATA, await this.loadData());
+    const saved = await this.loadData();
+    this.data = Object.assign({}, DEFAULT_DATA, saved);
+    // Merge settings so new keys get defaults
+    this.data.settings = Object.assign({}, DEFAULT_SETTINGS, saved?.settings);
   }
 
   async savePluginData() {
@@ -610,10 +633,10 @@ class AssemblerView extends ItemView {
     const btnGroup = projectRow.createDiv({ cls: "na-btn-group" });
 
     const newBtn = btnGroup.createEl("button", {
-      cls: "na-btn",
+      cls: "na-btn na-btn-icon",
       attr: { "aria-label": "New project" },
     });
-    newBtn.setText("+");
+    setIcon(newBtn, "plus");
     newBtn.addEventListener("click", () => {
       new NewProjectModal(this.app, async (name) => {
         const filePath = `${name}.md`;
@@ -637,10 +660,10 @@ class AssemblerView extends ItemView {
     });
 
     const deleteBtn = btnGroup.createEl("button", {
-      cls: "na-btn na-btn-danger",
+      cls: "na-btn na-btn-icon na-btn-danger",
       attr: { "aria-label": "Delete project" },
     });
-    deleteBtn.setText("\u00D7");
+    setIcon(deleteBtn, "trash-2");
     deleteBtn.addEventListener("click", async () => {
       const project = this.plugin.getActiveProject();
       if (!project) return;
@@ -800,7 +823,8 @@ class AssemblerView extends ItemView {
       card.dataset.index = String(index);
 
       // Drag handle
-      card.createSpan({ cls: "na-grip", text: "\u2630" });
+      const grip = card.createSpan({ cls: "na-grip" });
+      setIcon(grip, "grip-vertical");
 
       // Number
       card.createSpan({ cls: "na-note-num", text: `${index + 1}.` });
@@ -839,14 +863,16 @@ class AssemblerView extends ItemView {
 
       // Move buttons
       const moveGroup = card.createSpan({ cls: "na-move-group" });
-      const upBtn = moveGroup.createSpan({ cls: "na-move", text: "\u25B2" });
+      const upBtn = moveGroup.createSpan({ cls: "na-move" });
+      setIcon(upBtn, "chevron-up");
       upBtn.setAttribute("title", "Move up");
       if (index === 0) upBtn.addClass("na-move-disabled");
       upBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         if (index > 0) await this.plugin.moveSection(project, index, index - 1);
       });
-      const downBtn = moveGroup.createSpan({ cls: "na-move", text: "\u25BC" });
+      const downBtn = moveGroup.createSpan({ cls: "na-move" });
+      setIcon(downBtn, "chevron-down");
       downBtn.setAttribute("title", "Move down");
       if (index === draggable.length - 1) downBtn.addClass("na-move-disabled");
       downBtn.addEventListener("click", async (e) => {
@@ -855,7 +881,8 @@ class AssemblerView extends ItemView {
       });
 
       // Extract button
-      const extractBtn = card.createSpan({ cls: "na-extract", text: "\u2197" });
+      const extractBtn = card.createSpan({ cls: "na-extract" });
+      setIcon(extractBtn, "arrow-up-right");
       extractBtn.setAttribute("title", "Extract to standalone note");
       extractBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -863,7 +890,8 @@ class AssemblerView extends ItemView {
       });
 
       // Remove button
-      const removeBtn = card.createSpan({ cls: "na-remove", text: "\u00D7" });
+      const removeBtn = card.createSpan({ cls: "na-remove" });
+      setIcon(removeBtn, "x");
       removeBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         await this.plugin.removeSection(project, index);
@@ -941,7 +969,8 @@ class AssemblerView extends ItemView {
     // Show pinned sections (Sources) as non-draggable
     for (const section of pinned) {
       const card = list.createDiv({ cls: "na-note-card na-pinned" });
-      card.createSpan({ cls: "na-grip na-grip-disabled", text: "\u2630" });
+      const pinnedGrip = card.createSpan({ cls: "na-grip na-grip-disabled" });
+      setIcon(pinnedGrip, "grip-vertical");
       card.createSpan({ cls: "na-note-num", text: "" });
       const title = card.createSpan({
         cls: "na-note-title na-pinned-title",
@@ -983,7 +1012,7 @@ class AssemblerView extends ItemView {
     const existingHeadings = new Set(allSections.map((s) => s.heading));
     const suggestions: TFile[] = [];
     for (const linkTarget of allWikilinks) {
-      if (suggestions.length >= 6) break;
+      if (suggestions.length >= this.plugin.data.settings.maxRelatedNotes) break;
       const resolved = this.app.metadataCache.getFirstLinkpathDest(linkTarget, project.filePath);
       if (!resolved) continue;
       if (resolved.path === project.filePath) continue;
@@ -998,7 +1027,8 @@ class AssemblerView extends ItemView {
       for (const file of suggestions) {
         const row = relatedContainer.createDiv({ cls: "na-related-item" });
         row.createSpan({ cls: "na-related-name", text: file.basename });
-        const addBtn = row.createSpan({ cls: "na-related-add", text: "+" });
+        const addBtn = row.createSpan({ cls: "na-related-add" });
+        setIcon(addBtn, "plus");
         addBtn.setAttribute("title", `Add "${file.basename}" to project`);
         addBtn.addEventListener("click", async () => {
           await this.plugin.addNoteToProject(project, file);
@@ -1201,6 +1231,75 @@ class ExtractSelectionModal extends Modal {
 
   onClose() {
     this.contentEl.empty();
+  }
+}
+
+// ── Settings Tab ────────────────────────────────────────────
+
+class NoteAssemblerSettingTab extends PluginSettingTab {
+  plugin: NoteAssemblerPlugin;
+
+  constructor(app: App, plugin: NoteAssemblerPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    containerEl.createEl("h2", { text: "Note Assembler" });
+
+    new Setting(containerEl)
+      .setName("Pinned section name")
+      .setDesc("The heading that stays pinned at the bottom (e.g. Sources, Bibliography, References)")
+      .addText((text) =>
+        text
+          .setPlaceholder("Sources")
+          .setValue(this.plugin.data.settings.pinnedSectionName)
+          .onChange(async (value) => {
+            this.plugin.data.settings.pinnedSectionName = value || "Sources";
+            await this.plugin.savePluginData();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Max related notes")
+      .setDesc("Maximum number of suggestions shown in the Related Notes panel")
+      .addSlider((slider) =>
+        slider
+          .setLimits(2, 12, 1)
+          .setValue(this.plugin.data.settings.maxRelatedNotes)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.data.settings.maxRelatedNotes = value;
+            await this.plugin.savePluginData();
+          })
+      );
+
+    // Donation / about section
+    containerEl.createEl("h3", { text: "Support" });
+    const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
+    donateDesc.createSpan({
+      text: "Note Assembler is free and open source. If it helps your writing, consider buying me a coffee.",
+    });
+    donateDesc.createEl("br");
+    const link = donateDesc.createEl("a", {
+      text: "Buy Me a Coffee",
+      href: "https://buymeacoffee.com/maggiemcguire",
+    });
+    link.setAttr("target", "_blank");
+
+    containerEl.createEl("h3", { text: "About" });
+    const aboutDesc = containerEl.createDiv({ cls: "na-settings-about" });
+    aboutDesc.createSpan({
+      text: "Built by Maggie McGuire. ",
+    });
+    const ghLink = aboutDesc.createEl("a", {
+      text: "GitHub",
+      href: "https://github.com/MaggieMcgu/obsidian-note-assembler",
+    });
+    ghLink.setAttr("target", "_blank");
   }
 }
 
