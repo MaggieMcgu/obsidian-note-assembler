@@ -781,15 +781,18 @@ class AssemblerView extends ItemView {
       return;
     }
 
-    // Ensure the project file is open in the editor
+    // Ensure the project file is open and visible in the editor
     const openLeaves = this.app.workspace.getLeavesOfType("markdown");
-    const alreadyOpen = openLeaves.some((leaf) => {
+    const existingLeaf = openLeaves.find((leaf) => {
       const view = leaf.view as any;
       return view?.file?.path === projectFile.path;
     });
-    if (!alreadyOpen) {
+    if (existingLeaf) {
+      this.app.workspace.revealLeaf(existingLeaf);
+    } else {
       const leaf = this.app.workspace.getLeaf("tab");
       await leaf.openFile(projectFile);
+      this.app.workspace.revealLeaf(leaf);
     }
 
     // Read content and parse sections
