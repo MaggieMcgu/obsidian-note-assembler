@@ -697,7 +697,8 @@ class AssemblerView extends ItemView {
       return view?.file?.path === projectFile.path;
     });
     if (!alreadyOpen) {
-      await this.app.workspace.getLeaf().openFile(projectFile);
+      const leaf = this.app.workspace.getLeaf("tab");
+      await leaf.openFile(projectFile);
     }
 
     // Read content and parse sections
