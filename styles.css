@@ -1,0 +1,336 @@
+/* Note Assembler — Sidebar Styles */
+
+.note-assembler {
+  padding: 8px;
+  font-size: var(--font-ui-small);
+}
+
+/* ── Header ── */
+
+.na-header {
+  margin-bottom: 12px;
+}
+
+.na-project-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.na-project-select {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.na-btn-group {
+  display: flex;
+  gap: 2px;
+}
+
+.na-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+
+.na-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.na-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.na-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.na-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.na-btn-danger:hover {
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+/* ── Actions row ── */
+
+.na-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.na-actions .na-btn {
+  flex: 1;
+}
+
+/* ── Source folder ── */
+
+.na-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.na-folder-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  flex-shrink: 0;
+}
+
+.na-folder-select {
+  flex: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ── Empty state ── */
+
+.na-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 24px 12px;
+}
+
+/* ── Word count ── */
+
+.na-word-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: right;
+  padding: 4px 0;
+}
+
+/* ── Note list ── */
+
+.na-note-list {
+  margin-top: 8px;
+}
+
+.na-note-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  margin-bottom: 4px;
+  background: var(--background-primary);
+  cursor: grab;
+  transition: border-color 0.15s;
+}
+
+.na-note-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.na-dragging {
+  opacity: 0.4;
+}
+
+.na-drop-above {
+  border-top: 2px solid var(--interactive-accent);
+}
+
+.na-drop-below {
+  border-bottom: 2px solid var(--interactive-accent);
+}
+
+.na-grip {
+  color: var(--text-faint);
+  cursor: grab;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.na-note-num {
+  color: var(--text-muted);
+  font-size: 11px;
+  min-width: 18px;
+  flex-shrink: 0;
+}
+
+.na-note-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.na-note-title:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
+}
+
+/* ── Pinned sections (Sources) ── */
+
+.na-pinned {
+  cursor: default;
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.na-pinned:hover {
+  border-color: var(--background-modifier-border);
+}
+
+.na-grip-disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.na-pinned-title {
+  cursor: pointer;
+  font-style: italic;
+}
+
+.na-move-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.na-move {
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 8px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.na-move:hover {
+  color: var(--interactive-accent);
+}
+
+.na-move-disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.na-move-disabled:hover {
+  color: var(--text-faint);
+}
+
+.na-extract {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.na-extract:hover {
+  color: var(--interactive-accent);
+}
+
+.na-remove {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.na-remove:hover {
+  color: var(--text-error);
+}
+
+/* ── Modal ── */
+
+.na-modal-input {
+  width: 100%;
+  padding: 8px;
+  margin: 12px 0;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
+.na-extract-filename {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 8px;
+}
+
+.na-modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Related Notes ── */
+
+.na-related {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.na-related-header {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.na-related-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.na-related-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.na-related-name {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.na-related-add {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 6px;
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.na-related-add:hover {
+  color: var(--interactive-accent);
+}
