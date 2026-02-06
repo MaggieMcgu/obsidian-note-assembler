@@ -103,6 +103,19 @@ export default class NoteAssemblerPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "extract-selection-to-note",
+      name: "Extract selection to new note",
+      editorCheckCallback: (checking, editor) => {
+        const project = this.getActiveProject();
+        const selection = editor.getSelection();
+        if (!project || !selection.trim()) return false;
+        if (checking) return true;
+        this.extractSelectionToNote(project, selection);
+        return true;
+      },
+    });
+
     // Watch for file changes to update sidebar
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
@@ -468,6 +481,53 @@ export default class NoteAssemblerPlugin extends Plugin {
     await navigator.clipboard.writeText(output);
     const wordCount = output.split(/\s+/).filter((w) => w.length > 0).length;
     new Notice(`Copied to clipboard (${wordCount} words)`);
+  }
+
+  // ── Extract selection to a new note ──
+
+  async extractSelectionToNote(project: Project, selection: string) {
+    const defaultFolder = project.sourceFolder || "";
+
+    new ExtractSelectionModal(this.app, defaultFolder, async (noteName, folder) => {
+      const safeName = sanitizeFilename(noteName);
+      if (!safeName) {
+        new Notice("Note name cannot be empty");
+        return;
+      }
+
+      const targetPath = folder ? `${folder}/${safeName}.md` : `${safeName}.md`;
+
+      if (this.app.vault.getAbstractFileByPath(targetPath)) {
+        new Notice(`File "${targetPath}" already exists`);
+        return;
+      }
+
+      await this.app.vault.create(targetPath, selection.trim() + "\n");
+
+      // Add to Sources in project file
+      const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
+      if (projectFile instanceof TFile) {
+        const content = await this.getFileContent(projectFile);
+        const lines = content.split("\n");
+        const allSections = this.parseSections(content);
+        const sourcesSection = allSections.find((s) => s.pinned);
+
+        if (sourcesSection) {
+          const sourcesBody = lines
+            .slice(sourcesSection.startLine, sourcesSection.endLine)
+            .join("\n");
+          if (!sourcesBody.includes(`[[${safeName}]]`)) {
+            lines.splice(sourcesSection.endLine, 0, `- [[${safeName}]]`);
+            await this.setFileContent(projectFile, lines.join("\n"));
+          }
+        } else {
+          const newContent = content.trimEnd() + "\n\n---\n\n## Sources\n\n" + `- [[${safeName}]]` + "\n";
+          await this.setFileContent(projectFile, newContent);
+        }
+      }
+
+      new Notice(`Created "${safeName}.md" from selection`);
+    }).open();
   }
 
   refreshView() {
@@ -1075,6 +1135,68 @@ class ExtractModal extends Modal {
       this.close();
       this.onSubmit(folderSelect.value);
     });
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+// ── Extract Selection Modal ─────────────────────────────────
+
+class ExtractSelectionModal extends Modal {
+  onSubmit: (noteName: string, folder: string) => void;
+  defaultFolder: string;
+
+  constructor(app: App, defaultFolder: string, onSubmit: (noteName: string, folder: string) => void) {
+    super(app);
+    this.defaultFolder = defaultFolder;
+    this.onSubmit = onSubmit;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "Extract Selection to Note" });
+
+    const input = contentEl.createEl("input", {
+      type: "text",
+      cls: "na-modal-input",
+      placeholder: "Note name",
+    });
+    input.focus();
+
+    const folderSelect = contentEl.createEl("select", { cls: "na-modal-input" });
+    folderSelect.createEl("option", { text: "Vault root", value: "" });
+
+    const folders: string[] = [];
+    this.app.vault.getAllLoadedFiles().forEach((f) => {
+      if (f.children !== undefined && f.path !== "/") {
+        folders.push(f.path);
+      }
+    });
+    folders.sort();
+    for (const folder of folders) {
+      const opt = folderSelect.createEl("option", { text: folder, value: folder });
+      if (folder === this.defaultFolder) opt.selected = true;
+    }
+
+    const submit = () => {
+      const name = input.value.trim();
+      if (!name) {
+        new Notice("Note name cannot be empty");
+        return;
+      }
+      this.close();
+      this.onSubmit(name, folderSelect.value);
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+
+    const btnRow = contentEl.createDiv({ cls: "na-modal-buttons" });
+    const extractBtn = btnRow.createEl("button", { cls: "mod-cta", text: "Extract" });
+    extractBtn.addEventListener("click", submit);
   }
 
   onClose() {
