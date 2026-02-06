@@ -65,13 +65,13 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE, (leaf) => new AssemblerView(leaf, this));
 
-    this.addRibbonIcon("layers", "Note Assembler", () => {
+    this.addRibbonIcon("layers", "Cairn — Essay Composer", () => {
       this.activateView();
     });
 
     this.addCommand({
       id: "open-note-assembler",
-      name: "Open Note Assembler",
+      name: "Open Cairn",
       callback: () => this.activateView(),
     });
 
@@ -589,7 +589,7 @@ class AssemblerView extends ItemView {
   }
 
   getDisplayText() {
-    return "Note Assembler";
+    return "Cairn";
   }
 
   getIcon() {
@@ -1251,7 +1251,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Note Assembler" });
+    containerEl.createEl("h2", { text: "Cairn — Essay Composer" });
 
     new Setting(containerEl)
       .setName("Pinned section name")
@@ -1284,7 +1284,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Support" });
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
     donateDesc.createSpan({
-      text: "Note Assembler is free and open source. If it helps your writing, consider buying me a coffee.",
+      text: "Cairn is free and open source. If it helps your writing, consider buying me a coffee.",
     });
     donateDesc.createEl("br");
     const link = donateDesc.createEl("a", {

@@ -1,8 +1,8 @@
-# Note Assembler
+# Cairn — Essay Composer
 
-**Pull atomic notes into essays. Reorder your argument. Extract new ideas back out.**
+**Compose essays from your notes — pull, arrange, extract, export.**
 
-Note Assembler bridges the gap between *thinking in notes* and *writing in prose*. If you use a Zettelkasten, evergreen notes, or any atomic note system, you've probably felt the friction of turning a web of linked ideas into a linear essay. This plugin makes that process feel natural.
+Cairn bridges the gap between *thinking in notes* and *writing in prose*. If you use a Zettelkasten, evergreen notes, or any atomic note system, you've probably felt the friction of turning a web of linked ideas into a linear essay. This plugin makes that process feel natural.
 
 ## The Problem
 
@@ -12,7 +12,7 @@ You have 200 notes. You need to write an essay. The current options:
 - **Embeds (`![[Note]]`)** — Read-only, can't edit the text
 - **Longform plugin** — Built for novels with scenes/chapters, not for assembling ideas
 
-Note Assembler takes a different approach: your essay is a normal markdown file. The plugin gives you a sidebar to pull notes in, rearrange them, and write — then extract new ideas back into your vault when they emerge.
+Cairn takes a different approach: your essay is a normal markdown file. The plugin gives you a sidebar to pull notes in, rearrange them, and write — then extract new ideas back into your vault when they emerge.
 
 ## How It Works
 
@@ -34,7 +34,7 @@ Note Assembler takes a different approach: your essay is a normal markdown file.
 ### Pull In Notes
 - Fuzzy search filtered by source folder
 - Strips frontmatter and redundant headings
-- Auto-tracks sources in a `## Sources` section
+- Auto-tracks sources in a pinned section (configurable name)
 - **Related Notes** panel surfaces `[[wikilinks]]` from your content as suggestions
 
 ### Extract Back
@@ -48,6 +48,10 @@ Note Assembler takes a different approach: your essay is a normal markdown file.
 - Removes the Sources section
 - Copies to clipboard with word count confirmation
 - Also available as a command palette action
+
+### Settings
+- Configurable pinned section name (Sources, Bibliography, References, etc.)
+- Adjustable Related Notes suggestion count
 
 ## Architecture
 
@@ -67,10 +71,10 @@ This means zero lock-in. Disable the plugin and your essay is still a perfectly 
 1. Download the latest release (`main.js`, `manifest.json`, `styles.css`)
 2. Create a folder: `{your-vault}/.obsidian/plugins/note-assembler/`
 3. Copy the three files into it
-4. In Obsidian: Settings > Community Plugins > Enable "Note Assembler"
+4. In Obsidian: Settings > Community Plugins > Enable "Cairn — Essay Composer"
 
 ### From Community Plugins *(coming soon)*
-Search "Note Assembler" in Settings > Community Plugins > Browse.
+Search "Cairn" or "essay composer" in Settings > Community Plugins > Browse.
 
 ## Usage Tips
 
@@ -83,7 +87,7 @@ Search "Note Assembler" in Settings > Community Plugins > Browse.
 
 [Maggie McGuire](https://moabsunnews.com) — journalist and publisher of Moab Sun News in Moab, Utah. Built this to write better essays from better notes.
 
-If Note Assembler helps your writing, [buy me a coffee](https://buymeacoffee.com/maggiemcguire).
+If Cairn helps your writing, [buy me a coffee](https://buymeacoffee.com/maggiemcguire).
 
 ## License
 

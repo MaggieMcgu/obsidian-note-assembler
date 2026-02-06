@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy note-assembler to Obsidian vault for testing
+# Deploy Cairn (note-assembler) to Obsidian vault for testing
 
 VAULT="/Users/maggiemcguire/Library/Mobile Documents/iCloud~md~obsidian/Documents/Braaaaains"
 PLUGIN_DIR="$VAULT/.obsidian/plugins/note-assembler"

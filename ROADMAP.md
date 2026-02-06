@@ -1,4 +1,4 @@
-# Note Assembler — Roadmap
+# Cairn — Roadmap
 
 ## Done (v0.2.0)
 
@@ -17,7 +17,6 @@
 ## Next (v0.3)
 
 - [ ] **Preview in fuzzy search** — Show 1-2 line snippet below each note name in the search modal so you can tell similar notes apart
-- [ ] **Settings tab** — Configurable options (pinned section name, default folder, donation link)
 - [ ] **Sources as frontmatter option** — Move source tracking to YAML frontmatter instead of visible `## Sources` section. Keeps provenance without cluttering the essay
 - [ ] **Nest notes as h3 children** — Pull a note into an existing section as supplementary material (`### ` heading) rather than a peer `## ` section
 

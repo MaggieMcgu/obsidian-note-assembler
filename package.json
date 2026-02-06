@@ -1,7 +1,7 @@
 {
   "name": "note-assembler",
   "version": "0.2.0",
-  "description": "Assemble atomic/evergreen notes into longer essays",
+  "description": "Compose essays from your notes — pull, arrange, extract, export",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
