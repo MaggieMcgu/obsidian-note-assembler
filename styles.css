@@ -35,23 +35,18 @@
   flex-shrink: 0;
 }
 
-.na-open-essay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  margin-top: 8px;
+.na-new-essay-link {
+  background: none;
+  border: none;
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  padding: 0 0 6px;
+  display: block;
 }
 
-.na-open-essay-icon {
-  display: flex;
-  align-items: center;
-}
-
-.na-open-essay-icon svg {
-  width: 14px;
-  height: 14px;
+.na-new-essay-link:hover {
+  text-decoration: underline;
 }
 
 .na-btn {

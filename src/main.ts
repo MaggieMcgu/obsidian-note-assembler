@@ -1240,6 +1240,37 @@ class AssemblerView extends ItemView {
 
     // ── Header: project selector + buttons ──
     const header = container.createDiv({ cls: "na-header" });
+
+    // "Create New Essay" text link at top
+    const newEssayBtn = header.createEl("button", {
+      cls: "na-new-essay-link",
+      text: "+ Create New Essay",
+    });
+    newEssayBtn.addEventListener("click", () => {
+      const modal = new NewProjectModal(this.app, async (name) => {
+        modal.close();
+        await sleep(100);
+        const filePath = `${name}.md`;
+        const existing = this.app.vault.getAbstractFileByPath(filePath);
+        if (!existing) {
+          await this.app.vault.create(filePath, "");
+        }
+        const project: Project = {
+          id: generateId(),
+          name,
+          filePath,
+          sourceFolder: "",
+          sources: [],
+        };
+        this.plugin.data.projects.push(project);
+        this.plugin.data.activeProjectId = project.id;
+        await this.plugin.savePluginData();
+        this.renderContent();
+      });
+      modal.open();
+    });
+
+    // Project selector row: [dropdown] [Open Essay] [untrack]
     const projectRow = header.createDiv({ cls: "na-project-row" });
 
     const select = projectRow.createEl("select", { cls: "na-project-select" });
@@ -1265,59 +1296,10 @@ class AssemblerView extends ItemView {
       this.plugin.updateProjectFileClass();
     });
 
-    const btnGroup = projectRow.createDiv({ cls: "na-btn-group" });
-
-    const newBtn = btnGroup.createEl("button", {
-      cls: "na-btn na-btn-icon",
-      attr: { "aria-label": "New project" },
-    });
-    setIcon(newBtn, "plus");
-    newBtn.addEventListener("click", () => {
-      const modal = new NewProjectModal(this.app, async (name) => {
-        modal.close();
-        await sleep(100);
-        const filePath = `${name}.md`;
-        const existing = this.app.vault.getAbstractFileByPath(filePath);
-        if (!existing) {
-          await this.app.vault.create(filePath, "");
-        }
-        const project: Project = {
-          id: generateId(),
-          name,
-          filePath,
-          sourceFolder: "",
-          sources: [],
-        };
-        this.plugin.data.projects.push(project);
-        this.plugin.data.activeProjectId = project.id;
-        await this.plugin.savePluginData();
-        this.renderContent();
-      });
-      modal.open();
-    });
-
-    const untrackBtn = btnGroup.createEl("button", {
-      cls: "na-btn na-btn-icon na-btn-danger",
-      attr: { "aria-label": "Untrack project" },
-    });
-    setIcon(untrackBtn, "unlink");
-    untrackBtn.addEventListener("click", async () => {
-      const project = this.plugin.getActiveProject();
-      if (!project) return;
-      if (
-        !confirm(
-          `Untrack "${project.name}"? Your essay note stays in your vault — Cairn just stops managing it.`
-        )
-      )
-        return;
-      this.plugin.untrackProject(project.id);
-    });
-
-    const openBtn = header.createEl("button", {
-      cls: "na-btn na-btn-primary na-open-essay",
+    const openBtn = projectRow.createEl("button", {
+      cls: "na-btn na-btn-primary",
       text: "Open Essay",
     });
-    setIcon(openBtn.createSpan({ cls: "na-open-essay-icon" }), "file-text");
     openBtn.addEventListener("click", async () => {
       const proj = this.plugin.getActiveProject();
       if (!proj) return;
@@ -1334,6 +1316,23 @@ class AssemblerView extends ItemView {
         const leaf = this.app.workspace.getLeaf("tab");
         await leaf.openFile(pFile);
       }
+    });
+
+    const untrackBtn = projectRow.createEl("button", {
+      cls: "na-btn na-btn-icon na-btn-danger",
+      attr: { "aria-label": "Untrack project" },
+    });
+    setIcon(untrackBtn, "unlink");
+    untrackBtn.addEventListener("click", async () => {
+      const project = this.plugin.getActiveProject();
+      if (!project) return;
+      if (
+        !confirm(
+          `Untrack "${project.name}"? Your essay note stays in your vault — Cairn just stops managing it.`
+        )
+      )
+        return;
+      this.plugin.untrackProject(project.id);
     });
 
     const project = this.plugin.getActiveProject();
