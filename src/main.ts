@@ -37,6 +37,7 @@ interface NoteAssemblerSettings {
   addBacklinkToSource: boolean;
   exportIncludeHeadings: boolean;
   showProjectsInDistill: boolean;
+  hideHeadings: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -46,6 +47,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   addBacklinkToSource: false,
   exportIncludeHeadings: true,
   showProjectsInDistill: true,
+  hideHeadings: false,
 };
 
 interface NoteAssemblerData {
@@ -254,13 +256,13 @@ export default class NoteAssemblerPlugin extends Plugin {
 
   onunload() {
     document.querySelectorAll(".cairn-project-file").forEach((el) => {
-      el.classList.remove("cairn-project-file");
+      el.classList.remove("cairn-project-file", "cairn-hide-headings");
     });
   }
 
   updateProjectFileClass() {
     document.querySelectorAll(".cairn-project-file").forEach((el) => {
-      el.classList.remove("cairn-project-file");
+      el.classList.remove("cairn-project-file", "cairn-hide-headings");
     });
     const project = this.getActiveProject();
     if (!project) return;
@@ -269,6 +271,9 @@ export default class NoteAssemblerPlugin extends Plugin {
       const file = (leaf.view as any)?.file;
       if (file && file.path === project.filePath) {
         leaf.view.containerEl.classList.add("cairn-project-file");
+        if (this.data.settings.hideHeadings) {
+          leaf.view.containerEl.classList.add("cairn-hide-headings");
+        }
         break;
       }
     }
@@ -390,11 +395,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     const sections = this.parseSections(content);
 
     const trimmed = selection.trim();
-    const headingText =
-      trimmed.length > 60
-        ? trimmed.substring(0, 60).replace(/\s+\S*$/, "") + "\u2026"
-        : trimmed.split("\n")[0];
-    const heading = headingText.replace(/[#|[\]]/g, "");
+    const sourceName = sourceFile.basename;
 
     const qLines = trimmed.split("\n");
     const blockquote =
@@ -409,8 +410,7 @@ export default class NoteAssemblerPlugin extends Plugin {
                   : `> ${line}`
             )
             .join("\n");
-    const sourceName = sourceFile.basename;
-    const newSection = `## ${heading}\n\n${blockquote}  [[${sourceName}|*]]\n`;
+    const newSection = `## ${sourceName}\n\n${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -1011,18 +1011,13 @@ From the source preview, you have four options:
     const sections = this.parseSections(content);
 
     const trimmed = selection.trim();
-    const headingText =
-      trimmed.length > 60
-        ? trimmed.substring(0, 60).replace(/\s+\S*$/, "") + "\u2026"
-        : trimmed.split("\n")[0];
-    const heading = "Quote: " + headingText.replace(/[#|[\]]/g, "");
+    const sourceName = sourceFile.basename;
 
     const blockquote = trimmed
       .split("\n")
       .map((line) => `> ${line}`)
       .join("\n");
-    const sourceName = sourceFile.basename;
-    const newSection = `## ${heading}\n\n${blockquote}  [[${sourceName}|*]]\n`;
+    const newSection = `## ${sourceName}\n\n${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -1680,6 +1675,18 @@ class AssemblerView extends ItemView {
     // Section header
     const sectionHeader = section.createDiv({ cls: "na-section-header" });
     sectionHeader.createSpan({ cls: "na-section-label", text: "OUTLINE" });
+
+    const hideBtn = sectionHeader.createEl("button", {
+      cls: "na-heading-toggle clickable-icon" + (this.plugin.data.settings.hideHeadings ? " na-heading-toggle-active" : ""),
+      attr: { "aria-label": "Toggle section headings in editor" },
+    });
+    setIcon(hideBtn, this.plugin.data.settings.hideHeadings ? "eye-off" : "eye");
+    hideBtn.addEventListener("click", () => {
+      this.plugin.data.settings.hideHeadings = !this.plugin.data.settings.hideHeadings;
+      this.plugin.savePluginData();
+      this.plugin.updateProjectFileClass();
+      this.renderView();
+    });
 
     // Action buttons (top)
     const actions = section.createDiv({ cls: "na-actions" });

@@ -768,6 +768,27 @@ select.na-modal-input {
   font-weight: 500 !important;
 }
 
+/* ── Hide headings toggle ── */
+
+.cairn-hide-headings .HyperMD-header-2 {
+  display: none !important;
+}
+
+.na-heading-toggle {
+  margin-left: auto;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.na-heading-toggle:hover {
+  color: var(--text-normal);
+}
+
+.na-heading-toggle-active {
+  color: var(--text-accent);
+}
+
 /* ── Settings tab ── */
 
 .na-settings-donate {
