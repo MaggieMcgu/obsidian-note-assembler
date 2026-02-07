@@ -441,6 +441,10 @@ export default class NoteAssemblerPlugin extends Plugin {
     }
 
     await this.setFileContent(projectFile, newContent);
+    const insertLine = sourcesSection
+      ? sourcesSection.startLine
+      : lines.length;
+    this.scrollEditorToLine(projectFile, insertLine);
 
     const idx = project.sources.findIndex(
       (s) => s.notePath === source.notePath
@@ -528,6 +532,21 @@ export default class NoteAssemblerPlugin extends Plugin {
     await this.app.vault.modify(file, content);
   }
 
+  scrollEditorToLine(file: TFile, line: number) {
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      const view = leaf.view as any;
+      if (view?.file?.path === file.path && view?.editor) {
+        view.editor.setCursor({ line, ch: 0 });
+        view.editor.scrollIntoView(
+          { from: { line, ch: 0 }, to: { line: line + 2, ch: 0 } },
+          true
+        );
+        return;
+      }
+    }
+  }
+
   // ── Add a vault note as a new section (with [[source|*]] attribution) ──
 
   async addNoteToProject(project: Project, sourceFile: TFile) {
@@ -580,6 +599,11 @@ export default class NoteAssemblerPlugin extends Plugin {
     }
 
     await this.setFileContent(projectFile, newContent);
+    // Scroll editor to the newly added section
+    const insertLine = sourcesSection
+      ? sourcesSection.startLine
+      : lines.length;
+    this.scrollEditorToLine(projectFile, insertLine);
     new Notice(`Added "## ${sourceFile.basename}" to outline`);
   }
 

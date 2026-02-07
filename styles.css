@@ -581,6 +581,17 @@
   background: var(--background-primary);
   color: var(--text-normal);
   font-size: var(--font-ui-medium);
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+select.na-modal-input {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 10px 8px;
+  line-height: 1.4;
+  min-height: 40px;
 }
 
 .na-modal-folder-row {
