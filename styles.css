@@ -485,8 +485,12 @@
 /* ── Editor: structural heading styling (project file only) ── */
 
 .cairn-project-file .HyperMD-header-2 {
-  border-left: 2px solid var(--text-faint) !important;
+  border-left: none !important;
   padding: 20px 0 6px 8px !important;
+  background-image: linear-gradient(var(--text-faint), var(--text-faint)) !important;
+  background-size: 2px calc(100% - 16px) !important;
+  background-position: left bottom !important;
+  background-repeat: no-repeat !important;
 }
 
 .cairn-project-file .HyperMD-header-2 .cm-header-2 {
