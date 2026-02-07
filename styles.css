@@ -137,6 +137,199 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* ── Section Headers (Sources / Outline) ── */
+
+.na-sources-section,
+.na-outline-section {
+  margin-bottom: 16px;
+}
+
+.na-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.na-section-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* ── Source Queue ── */
+
+.na-source-list {
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  padding: 2px;
+  transition: border-color 0.15s;
+}
+
+.na-drop-target-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.na-source-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  margin-bottom: 3px;
+  background: var(--background-primary);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.na-source-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.na-source-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.na-source-done {
+  opacity: 0.5;
+}
+
+.na-source-status {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.na-source-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.na-source-status:hover {
+  color: var(--interactive-accent);
+}
+
+.na-source-title {
+  flex: 1;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.na-source-remove {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.na-source-card:hover .na-source-remove {
+  opacity: 1;
+}
+
+.na-source-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.na-source-remove:hover {
+  color: var(--text-error);
+}
+
+.na-source-empty {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+  padding: 8px;
+  text-align: center;
+}
+
+.na-add-source-btn {
+  width: 100%;
+  margin-top: 6px;
+  text-align: center;
+  font-size: var(--font-ui-smaller);
+}
+
+/* ── Source Preview ── */
+
+.na-source-preview {
+  margin: 6px 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  overflow: hidden;
+}
+
+.na-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.na-preview-title {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  color: var(--text-accent);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.na-preview-title:hover {
+  text-decoration: underline;
+}
+
+.na-preview-body {
+  padding: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  color: var(--text-normal);
+}
+
+.na-preview-actions {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.na-preview-actions .na-btn {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-ui-smaller);
+  padding: 3px 6px;
+}
+
+/* ── Outline Empty ── */
+
+.na-outline-empty {
+  padding: 12px;
+}
+
 /* ── Empty state ── */
 
 .na-empty {
