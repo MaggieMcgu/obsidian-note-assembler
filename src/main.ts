@@ -410,7 +410,7 @@ export default class NoteAssemblerPlugin extends Plugin {
                   : `> ${line}`
             )
             .join("\n");
-    const newSection = `## ${sourceName}\n\n${blockquote}  [[${sourceName}|*]]\n`;
+    const newBlock = `${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -427,7 +427,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       newContent =
         beforeSources.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         "\n" +
         updatedSources +
         "\n";
@@ -436,7 +436,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       newContent =
         content.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         `\n\n---\n\n## ${pinnedName}\n\n- [[${sourceName}]]\n`;
     }
 
@@ -455,7 +455,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     }
 
     this.switchToTab("outline");
-    new Notice(`Quoted to outline as "## ${heading}"`);
+    new Notice(`Quoted from ${sourceName}`);
   }
 
   async distillSelectionFromSource(
@@ -569,7 +569,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       .split("\n")
       .map((l) => `> ${l}`)
       .join("\n");
-    const newSection = `## ${sourceFile.basename}\n\n${quoted}  [[${sourceFile.basename}|*]]\n`;
+    const newBlock = `${quoted}  [[${sourceFile.basename}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -585,7 +585,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       newContent =
         beforeSources.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         "\n" +
         updatedSources +
         "\n";
@@ -594,19 +594,18 @@ export default class NoteAssemblerPlugin extends Plugin {
       newContent =
         content.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         `\n\n---\n\n## ${pinnedName}\n\n` +
         `- [[${sourceFile.basename}]]` +
         "\n";
     }
 
     await this.setFileContent(projectFile, newContent);
-    // Scroll editor to the newly added section
     const insertLine = sourcesSection
       ? sourcesSection.startLine
       : lines.length;
     this.scrollEditorToLine(projectFile, insertLine);
-    new Notice(`Added "## ${sourceFile.basename}" to outline`);
+    new Notice(`Added from ${sourceFile.basename}`);
   }
 
   // ── Add a blank section ──
@@ -1017,7 +1016,7 @@ From the source preview, you have four options:
       .split("\n")
       .map((line) => `> ${line}`)
       .join("\n");
-    const newSection = `## ${sourceName}\n\n${blockquote}  [[${sourceName}|*]]\n`;
+    const newBlock = `${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -1034,7 +1033,7 @@ From the source preview, you have four options:
       newContent =
         beforeSources.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         "\n" +
         updatedSources +
         "\n";
@@ -1043,7 +1042,7 @@ From the source preview, you have four options:
       newContent =
         content.trimEnd() +
         "\n\n" +
-        newSection +
+        newBlock +
         `\n\n---\n\n## ${pinnedName}\n\n` +
         `- [[${sourceName}]]` +
         "\n";
