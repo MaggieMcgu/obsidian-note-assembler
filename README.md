@@ -16,12 +16,17 @@ Cairn takes a different approach: your essay is a normal markdown file. The plug
 
 ## How It Works
 
-1. **Create a project** — Give it an argumentative title (*"Growth is killing Moab's character"*)
-2. **Pull in notes** — Fuzzy search your vault, add notes as sections. Content is copied in, so you can freely edit it for your new context
-3. **Rearrange** — Drag sections or use arrow buttons to build your argument
-4. **Write** — Edit directly in the markdown file. The sidebar reflects your structure in real-time
-5. **Extract back** — When a new idea emerges while writing, click the arrow to extract it as a standalone note. The Zettelkasten loop completes
-6. **Export clean** — Copy to clipboard with wikilinks stripped, ready to paste into a blog, email, or doc
+**The full loop:** Read → Highlight (Readwise) → **Distill** (Cairn) → Note → **Essay** (Cairn)
+
+1. **Read & highlight** — Capture highlights with Readwise (or manually). They land in your vault as raw quotes
+2. **Distill** — Select a highlight, right-click → "Distill highlight to note." Write the idea in your own words. Cairn creates an atomic note with the reference attached
+3. **Create a project** — Give it an argumentative title (*"Growth is killing Moab's character"*)
+4. **Pull in notes** — Fuzzy search your vault, add notes as sections. Content is copied in, so you can freely edit it
+5. **Browse & collect** — Navigate source notes with the sidebar open. Right-click quotes to add them directly to your essay
+6. **Rearrange** — Drag sections or use arrow buttons to build your argument
+7. **Write** — Hit "Open Essay" to return. Edit directly in the file; the sidebar reflects your structure live
+8. **Extract back** — When a new idea emerges, extract it as a standalone note. The Zettelkasten loop completes
+9. **Export** — Copy to clipboard with wikilinks stripped, headings optionally removed, ready for publication
 
 ## Features
 
@@ -30,12 +35,31 @@ Cairn takes a different approach: your essay is a normal markdown file. The plug
 - **Click to jump** to any section in the editor
 - **Drag-and-drop** or **arrow buttons** to reorder
 - **Word count** updates live as you write
+- **Open Essay** button to navigate back to the project file from anywhere
 
 ### Pull In Notes
-- Fuzzy search filtered by source folder
+- Fuzzy search with source folder picker in the dialog
 - Strips frontmatter and redundant headings
 - Auto-tracks sources in a pinned section (configurable name)
 - **Related Notes** panel surfaces `[[wikilinks]]` from your content as suggestions
+
+### Browsing Workflow
+Keep the sidebar open while navigating source notes. Right-click selected text for:
+- **Add quote to essay** — Inserts a blockquote section with a `Quote: ...` heading and `— [[Source]]` attribution
+- **Distill highlight to note** — Opens a modal to turn a highlight into an atomic note (see below)
+
+Then hit **Open Essay** to return and write your connective tissue.
+
+### Distill Highlight
+Turn highlights into atomic notes in your own words:
+1. Select a quote in any file (works especially well with Readwise imports)
+2. Right-click → "Distill highlight to note" (or use the command palette)
+3. Modal shows the quote, source info, and a text area for your idea
+4. Title auto-suggests from your idea text
+5. Creates an atomic note with a `## Reference` section (quote, source link, author, View Highlight URL)
+6. Optional: automatically adds the new note to your active essay
+
+Parses Readwise `## Metadata` and `## Highlights` sections for author, URL, and highlight links.
 
 ### Extract Back
 - Turn any section into a standalone vault note with one click
@@ -43,15 +67,21 @@ Cairn takes a different approach: your essay is a normal markdown file. The plug
 - Source tracking updated automatically
 - Essay text stays intact — you're birthing a new note, not hollowing out your writing
 
-### Clean Export
+### Export Final Essay
 - Strips `[[wikilinks]]` (keeps display text)
 - Removes the Sources section
+- Option to include or strip `##` headings (configurable in settings)
 - Copies to clipboard with word count confirmation
-- Also available as a command palette action
+
+### Structural Heading Styling
+When editing the project file, `##` headings appear with a subtle left accent border and muted color — a visual cue that they're structural dividers, not essay content. This styling only applies to the active project file.
 
 ### Settings
 - Configurable pinned section name (Sources, Bibliography, References, etc.)
 - Adjustable Related Notes suggestion count
+- Export: include or strip headings
+- Distill: default folder for new notes
+- Distill: add backlink to source file toggle
 
 ## Architecture
 
@@ -79,8 +109,10 @@ Search "Cairn" or "essay composer" in Settings > Community Plugins > Browse.
 ## Usage Tips
 
 - **Start with a thesis.** The "New Essay" prompt nudges you toward an argumentative title. A clear claim makes it easier to decide which notes belong and which don't.
-- **Set a source folder** to filter the fuzzy search to a specific area of your vault.
-- **Use Related Notes** to follow the trail. When you pull in a note that links to other notes, they'll appear as suggestions — this is how Zettelkasten exploration works.
+- **Set a source folder** in the "Add Note" dialog to filter the fuzzy search to a specific area of your vault.
+- **Use the browsing workflow.** Keep the sidebar open while reading source notes. Add quotes and distill highlights as you go, then hit "Open Essay" to write.
+- **Use Related Notes** to follow the trail. When you pull in a note that links to other notes, they'll appear as suggestions.
+- **Distill, don't just collect.** The Distill modal asks "What does this mean to you?" — writing the idea in your own words is where the thinking happens.
 - **Extract freely.** If you write three paragraphs that feel like their own idea, extract them. The best notes are born during writing, not before it.
 
 ## Built By

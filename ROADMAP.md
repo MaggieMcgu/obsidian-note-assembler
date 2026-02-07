@@ -7,17 +7,29 @@
 - Click section card to jump in editor
 - Extract-back (section → standalone note, choose folder)
 - Related Notes panel (follows wikilinks in content)
-- Word count (total)
-- Per-section word count
+- Word count (total + per-section)
 - Clean export (clipboard, wikilinks stripped)
 - Source folder filter
-- Auto-open project file
 - "New Essay" argumentative prompt
+- Settings tab
 
-## Next (v0.3)
+## Done (v0.3.0)
+
+- **Distill Highlight** — Select quote → modal → atomic note with Reference section. Parses Readwise metadata and highlight links
+- **Add Quote to Essay** — Right-click selected text to insert as blockquote with attribution
+- **Browsing workflow** — Open Essay button, sidebar stays open while navigating source notes
+- **"Add to essay" toggle** in Distill modal — creates note AND adds it to the active essay
+- **Right-click context menu** — "Add quote to essay" + "Distill highlight to note"
+- **Structural heading styling** — H2s in project file get accent border + muted color
+- **Export heading toggle** — Option to strip `##` lines from exported essay
+- Source folder picker moved into Add Note dialog
+- Renamed "Copy Clean" → "Export Final Essay"
+- Settings: distill default folder, backlink-to-source, export headings toggle
+
+## Next
 
 - [ ] **Preview in fuzzy search** — Show 1-2 line snippet below each note name in the search modal so you can tell similar notes apart
-- [ ] **Sources as frontmatter option** — Move source tracking to YAML frontmatter instead of visible `## Sources` section. Keeps provenance without cluttering the essay
+- [ ] **Sources as frontmatter option** — Move source tracking to YAML frontmatter instead of visible `## Sources` section
 - [ ] **Nest notes as h3 children** — Pull a note into an existing section as supplementary material (`### ` heading) rather than a peer `## ` section
 
 ## Someday
