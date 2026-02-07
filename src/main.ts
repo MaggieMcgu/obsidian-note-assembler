@@ -607,6 +607,132 @@ export default class NoteAssemblerPlugin extends Plugin {
     new Notice(`Copied to clipboard (${wordCount} words)`);
   }
 
+  // ── Sample project ──
+
+  async createSampleProject(): Promise<void> {
+    const filePath = "Cairn — Getting Started.md";
+    const existing = this.app.vault.getAbstractFileByPath(filePath);
+    if (existing) {
+      new Notice("Sample project already exists");
+      return;
+    }
+
+    const content = `# Cairn — Getting Started
+
+## What you're looking at
+
+This is a sample project — a real Cairn essay built with the plugin's own features. The sidebar on the right shows the structure of this file. Each card represents one of the \`## \` headings below.
+
+**Try it now:** Click any card in the sidebar to jump to that section.
+
+Notice how the headings have a subtle left border? That's Cairn telling you these are *structural dividers*, not essay content. Everything between them is where you write.
+
+<!-- GIF placeholder: sidebar-overview.gif — Show the sidebar with cards, clicking to jump -->
+
+## Pulling in notes
+
+When you click **Add Note** in the sidebar, Cairn searches your vault and copies the note's content into your essay as a new section. The original note stays untouched — you can freely edit the pulled-in text for your new context.
+
+The **Main Source** folder picker at the top of the search dialog lets you narrow results to a specific area of your vault.
+
+<!-- GIF placeholder: add-note.gif — Click Add Note, pick folder, select a note, show it appear -->
+
+## Rearranging your argument
+
+Drag the cards in the sidebar, or use the arrow buttons, to reorder sections. The file updates instantly — what you see in the editor is always the real document.
+
+<!-- GIF placeholder: reorder.gif — Drag a card to a new position, show file text move -->
+
+## Quote: "The best way to have a good idea is to have a lot of ideas"
+
+> The best way to have a good idea is to have a lot of ideas.
+
+— Linus Pauling
+
+*This is what a quote looks like.* Select text in any note, right-click, and choose **"Add quote to essay."** Cairn creates a blockquote section with a \`Quote:\` heading and inline attribution.
+
+<!-- GIF placeholder: add-quote.gif — Select text, right-click, Add quote to essay -->
+
+## The browsing workflow
+
+This is where Cairn really clicks. Keep the sidebar open while you navigate through source notes, reading and collecting as you go:
+
+1. **Browse** — Open source notes, read through highlights and ideas
+2. **Collect** — Right-click quotes to add them, or distill highlights into new notes
+3. **Return** — Hit **Open Essay** to jump back to your project file
+4. **Write** — Add the connective tissue between your collected pieces
+
+The sidebar stays with you the whole time, showing your growing outline.
+
+<!-- GIF placeholder: browsing-workflow.gif — Navigate to source note, add quote, hit Open Essay, write between sections -->
+
+## Distilling highlights
+
+The Distill feature turns raw highlights into atomic notes in your own words:
+
+1. Select a highlight in any file (works great with Readwise imports)
+2. Right-click → **"Distill highlight to note"**
+3. Write your idea — *what does this quote mean to you?*
+4. Cairn creates a note with a \`## Reference\` section linking back to the source
+
+If you have an active project, check **"Add to essay"** to pull the new note in automatically.
+
+<!-- GIF placeholder: distill.gif — Select highlight, right-click, Distill modal, write idea, create -->
+
+## Extracting new ideas
+
+Sometimes you write something that deserves to be its own note. Click the **↗** arrow on any section card to extract it back into your vault as a standalone note. The essay text stays intact.
+
+This completes the loop: notes become essays, and essays birth new notes.
+
+<!-- GIF placeholder: extract.gif — Click extract arrow, choose folder, show new note created -->
+
+## Exporting your finished essay
+
+When you're done, click **Export Final Essay** in the sidebar. Cairn copies your essay to the clipboard with:
+
+- \`[[Wikilinks]]\` stripped (display text kept)
+- Sources section removed
+- Optionally: headings stripped (toggle in Settings → Cairn)
+
+Ready to paste into a blog, email, or doc.
+
+## What to do next
+
+You've seen how Cairn works. Here's how to start:
+
+1. **Create your own essay** — Click **+** in the sidebar and give it an argumentative title
+2. **Delete this sample** — Click the trash icon on the project selector
+3. **Explore settings** — Settings → Cairn for export options, distill defaults, and more
+
+*Tip: Start with a claim, not a topic. "Growth is killing Moab's character" gives you something to argue. "Growth in Moab" gives you nothing to cut against.*
+
+## Sources
+
+- [[Cairn Documentation]]
+`;
+
+    await this.app.vault.create(filePath, content);
+
+    const project: Project = {
+      id: generateId(),
+      name: "Cairn — Getting Started",
+      filePath,
+      sourceFolder: "",
+    };
+    this.data.projects.push(project);
+    this.data.activeProjectId = project.id;
+    await this.savePluginData();
+    this.refreshView();
+
+    // Open the sample file in the editor
+    const newFile = this.app.vault.getAbstractFileByPath(filePath);
+    if (newFile instanceof TFile) {
+      const leaf = this.app.workspace.getLeaf();
+      await leaf.openFile(newFile);
+    }
+  }
+
   // ── Extract selection to a new note ──
 
   async extractSelectionToNote(project: Project, selection: string) {
@@ -1002,10 +1128,27 @@ class AssemblerView extends ItemView {
 
     // ── Section list from file ──
     if (!project) {
-      container.createDiv({
-        cls: "na-empty",
-        text: 'Create a project with "+" to get started. Pull notes from your vault into an outline. Drag to reorder. Your essay updates live.',
+      const emptyDiv = container.createDiv({ cls: "na-empty" });
+      emptyDiv.createSpan({
+        text: 'Create a project with "+" to get started.',
       });
+      if (this.plugin.data.projects.length === 0) {
+        emptyDiv.createEl("br");
+        emptyDiv.createEl("br");
+        const sampleBtn = emptyDiv.createEl("button", {
+          cls: "na-btn na-btn-primary",
+          text: "Try the sample project",
+        });
+        sampleBtn.addEventListener("click", () => {
+          this.plugin.createSampleProject();
+        });
+        emptyDiv.createEl("br");
+        emptyDiv.createEl("br");
+        emptyDiv.createSpan({
+          cls: "na-empty-hint",
+          text: "A guided tour of Cairn's features, built as a real project.",
+        });
+      }
       return;
     }
 
