@@ -605,6 +605,20 @@ export default class NoteAssemblerPlugin extends Plugin {
     await navigator.clipboard.writeText(output);
     const wordCount = output.split(/\s+/).filter((w) => w.length > 0).length;
     new Notice(`Copied to clipboard (${wordCount} words)`);
+
+    // Offer to untrack after export
+    setTimeout(() => {
+      if (confirm(`Essay exported. Untrack "${project.name}"? The file stays in your vault.`)) {
+        this.untrackProject(project.id);
+      }
+    }, 300);
+  }
+
+  async untrackProject(projectId: string) {
+    this.data.projects = this.data.projects.filter((p) => p.id !== projectId);
+    this.data.activeProjectId = this.data.projects[0]?.id ?? null;
+    await this.savePluginData();
+    this.refreshView();
   }
 
   // ── Sample project ──
@@ -1038,11 +1052,11 @@ class AssemblerView extends ItemView {
       modal.open();
     });
 
-    const deleteBtn = btnGroup.createEl("button", {
+    const untrackBtn = btnGroup.createEl("button", {
       cls: "na-btn na-btn-icon na-btn-danger",
-      attr: { "aria-label": "Delete project" },
+      attr: { "aria-label": "Untrack project" },
     });
-    setIcon(deleteBtn, "trash-2");
+    setIcon(untrackBtn, "unlink");
 
     const openBtn = header.createEl("button", {
       cls: "na-btn na-btn-primary na-open-essay",
@@ -1066,18 +1080,12 @@ class AssemblerView extends ItemView {
         await leaf.openFile(pFile);
       }
     });
-    deleteBtn.addEventListener("click", async () => {
+    untrackBtn.addEventListener("click", async () => {
       const project = this.plugin.getActiveProject();
       if (!project) return;
-      if (!confirm(`Delete project "${project.name}"? (The file will not be deleted)`))
+      if (!confirm(`Untrack "${project.name}"? Your essay note stays in your vault — Cairn just stops managing it.`))
         return;
-      this.plugin.data.projects = this.plugin.data.projects.filter(
-        (p) => p.id !== project.id
-      );
-      this.plugin.data.activeProjectId =
-        this.plugin.data.projects[0]?.id ?? null;
-      await this.plugin.savePluginData();
-      this.renderContent();
+      this.plugin.untrackProject(project.id);
     });
 
     const project = this.plugin.getActiveProject();
