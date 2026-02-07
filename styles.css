@@ -217,9 +217,6 @@
 
 .na-note-title {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
   color: var(--text-normal);
 }
@@ -489,8 +486,8 @@
 
 .cairn-project-file .HyperMD-header-2 {
   border-left: 2px solid var(--text-faint);
-  padding-left: 8px;
-  margin-top: 1.5em;
+  padding: 8px 0 4px 8px;
+  margin-top: 12px !important;
 }
 
 .cairn-project-file .HyperMD-header-2 .cm-header-2 {
