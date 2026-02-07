@@ -347,21 +347,27 @@
 .na-action-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  flex-wrap: wrap;
 }
 
 .na-action-label {
   color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
+  font-size: 10px;
   flex-shrink: 0;
-  min-width: 64px;
+  width: 100%;
+  margin-bottom: -1px;
 }
 
 .na-preview-actions .na-btn {
   flex: 1;
   text-align: center;
-  font-size: var(--font-ui-smaller);
-  padding: 3px 6px;
+  font-size: 11px;
+  padding: 3px 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .na-preview-actions .na-btn:disabled {

@@ -1679,6 +1679,29 @@ class AssemblerView extends ItemView {
     const sectionHeader = section.createDiv({ cls: "na-section-header" });
     sectionHeader.createSpan({ cls: "na-section-label", text: "OUTLINE" });
 
+    // Action buttons (top)
+    const actions = section.createDiv({ cls: "na-actions" });
+
+    const blankBtn = actions.createEl("button", {
+      cls: "na-btn",
+      text: "Add Section",
+    });
+    blankBtn.addEventListener("click", () => {
+      this.plugin.addBlankSection(project);
+    });
+
+    const exportBtn = actions.createEl("button", {
+      cls: "na-btn",
+      text: "Export Final Essay",
+    });
+    exportBtn.setAttribute(
+      "title",
+      "Export final essay to clipboard (wikilinks and [[source|*]] stripped)"
+    );
+    exportBtn.addEventListener("click", () => {
+      this.plugin.copyCleanExport(project);
+    });
+
     // Read content and parse sections
     const content = await this.plugin.getFileContent(projectFile);
     const allSections = this.plugin.parseSections(content);
@@ -1867,29 +1890,6 @@ class AssemblerView extends ItemView {
         });
       }
     }
-
-    // Action buttons
-    const actions = section.createDiv({ cls: "na-actions" });
-
-    const blankBtn = actions.createEl("button", {
-      cls: "na-btn",
-      text: "Add Section",
-    });
-    blankBtn.addEventListener("click", () => {
-      this.plugin.addBlankSection(project);
-    });
-
-    const exportBtn = actions.createEl("button", {
-      cls: "na-btn",
-      text: "Export Final Essay",
-    });
-    exportBtn.setAttribute(
-      "title",
-      "Export final essay to clipboard (wikilinks and [[source|*]] stripped)"
-    );
-    exportBtn.addEventListener("click", () => {
-      this.plugin.copyCleanExport(project);
-    });
 
     // ── Related Notes ──
     const fileContent = await this.plugin.getFileContent(projectFile);
