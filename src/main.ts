@@ -410,7 +410,7 @@ export default class NoteAssemblerPlugin extends Plugin {
             )
             .join("\n");
     const sourceName = sourceFile.basename;
-    const newSection = `## ${heading}\n\n${blockquote}\n[[${sourceName}|*]]\n`;
+    const newSection = `## ${heading}\n\n${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -569,7 +569,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       .split("\n")
       .map((l) => `> ${l}`)
       .join("\n");
-    const newSection = `## ${sourceFile.basename}\n\n${quoted}\n[[${sourceFile.basename}|*]]\n`;
+    const newSection = `## ${sourceFile.basename}\n\n${quoted}  [[${sourceFile.basename}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
@@ -1022,7 +1022,7 @@ From the source preview, you have four options:
       .map((line) => `> ${line}`)
       .join("\n");
     const sourceName = sourceFile.basename;
-    const newSection = `## ${heading}\n\n${blockquote}\n[[${sourceName}|*]]\n`;
+    const newSection = `## ${heading}\n\n${blockquote}  [[${sourceName}|*]]\n`;
 
     const sourcesSection = sections.find((s) => s.pinned);
     const lines = content.split("\n");
