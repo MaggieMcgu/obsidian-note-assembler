@@ -137,7 +137,7 @@ Search "Cairn" or "essay composer" in Settings > Community Plugins > Browse.
 
 [Maggie McGuire](https://moabsunnews.com) — journalist and publisher of Moab Sun News in Moab, Utah. Built this to write better essays from better notes.
 
-If Cairn helps your writing, [buy me a coffee](https://buymeacoffee.com/maggiemcguire).
+If Cairn helps your writing, [tip me on Venmo](https://venmo.com/KiKiBouba).
 
 ## License
 

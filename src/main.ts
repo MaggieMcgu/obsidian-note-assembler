@@ -1888,12 +1888,12 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Support" });
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
     donateDesc.createSpan({
-      text: "Cairn is free and open source. If it helps your writing, consider buying me a coffee.",
+      text: "Cairn is free and open source. If it helps your writing, consider leaving a tip.",
     });
     donateDesc.createEl("br");
     const link = donateDesc.createEl("a", {
-      text: "Buy Me a Coffee",
-      href: "https://buymeacoffee.com/maggiemcguire",
+      text: "Tip on Venmo",
+      href: "https://venmo.com/KiKiBouba",
     });
     link.setAttr("target", "_blank");
 
