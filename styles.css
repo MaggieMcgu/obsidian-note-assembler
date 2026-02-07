@@ -33,6 +33,25 @@
   gap: 2px;
 }
 
+.na-open-essay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.na-open-essay-icon {
+  display: flex;
+  align-items: center;
+}
+
+.na-open-essay-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .na-btn {
   padding: 4px 10px;
   border-radius: 4px;
@@ -84,6 +103,7 @@
 .na-actions {
   display: flex;
   gap: 6px;
+  margin-top: 8px;
 }
 
 .na-actions .na-btn {
@@ -316,6 +336,13 @@
   font-size: var(--font-ui-medium);
 }
 
+.na-modal-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
 .na-extract-filename {
   color: var(--text-muted);
   font-style: italic;
@@ -379,6 +406,76 @@
 
 .na-related-add:hover {
   color: var(--interactive-accent);
+}
+
+/* ── Distill Modal ── */
+
+.fl-source-info {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-bottom: 8px;
+}
+
+.fl-quote {
+  border-left: 3px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  padding: 10px 14px;
+  margin: 8px 0 12px;
+  font-style: italic;
+  color: var(--text-normal);
+  max-height: 150px;
+  overflow-y: auto;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.fl-idea-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px;
+  margin: 0 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.fl-idea-textarea:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.fl-title-input {
+  width: 100%;
+  padding: 8px;
+  margin: 0 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
+.fl-title-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.fl-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.fl-check-row input[type="checkbox"] {
+  margin: 0;
 }
 
 /* ── Settings tab ── */

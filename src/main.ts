@@ -25,11 +25,15 @@ interface Project {
 interface NoteAssemblerSettings {
   pinnedSectionName: string;
   maxRelatedNotes: number;
+  distillDefaultFolder: string;
+  addBacklinkToSource: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   pinnedSectionName: "Sources",
   maxRelatedNotes: 6,
+  distillDefaultFolder: "",
+  addBacklinkToSource: false,
 };
 
 interface NoteAssemblerData {
@@ -108,7 +112,7 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.addCommand({
       id: "copy-clean-export",
-      name: "Copy essay to clipboard (clean)",
+      name: "Export final essay to clipboard",
       checkCallback: (checking) => {
         const project = this.getActiveProject();
         if (!project) return false;
@@ -131,7 +135,62 @@ export default class NoteAssemblerPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "add-selection-to-essay",
+      name: "Add quote to essay",
+      editorCheckCallback: (checking, editor, view) => {
+        const project = this.getActiveProject();
+        const selection = editor.getSelection();
+        if (!project || !selection.trim() || !view.file) return false;
+        if (checking) return true;
+        this.addSelectionToEssay(project, selection, view.file);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "distill-highlight",
+      name: "Distill highlight to note",
+      editorCheckCallback: (checking, editor, view) => {
+        const selection = editor.getSelection();
+        if (!selection.trim()) return false;
+        if (checking) return true;
+        const file = view.file;
+        if (!file) return false;
+        this.distillHighlight(selection, file);
+        return true;
+      },
+    });
+
     this.addSettingTab(new NoteAssemblerSettingTab(this.app, this));
+
+    // Right-click context menu
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor, view) => {
+        const selection = editor.getSelection();
+        if (selection.trim() && view.file) {
+          const project = this.getActiveProject();
+          if (project) {
+            menu.addItem((item) => {
+              item
+                .setTitle("Add quote to essay")
+                .setIcon("plus-circle")
+                .onClick(() => {
+                  this.addSelectionToEssay(project, selection, view.file!);
+                });
+            });
+          }
+          menu.addItem((item) => {
+            item
+              .setTitle("Distill highlight to note")
+              .setIcon("sparkles")
+              .onClick(() => {
+                this.distillHighlight(selection, view.file!);
+              });
+          });
+        }
+      })
+    );
 
     // Watch for file changes to update sidebar
     this.registerEvent(
@@ -550,6 +609,150 @@ export default class NoteAssemblerPlugin extends Plugin {
     }).open();
   }
 
+  // ── Add selected text directly as a section in the essay ──
+
+  async addSelectionToEssay(project: Project, selection: string, sourceFile: TFile) {
+    const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
+    if (!(projectFile instanceof TFile)) return;
+
+    const content = await this.getFileContent(projectFile);
+    const sections = this.parseSections(content);
+
+    // Heading from content: first ~60 chars, truncated at word boundary
+    const trimmed = selection.trim();
+    const headingText = trimmed.length > 60
+      ? trimmed.substring(0, 60).replace(/\s+\S*$/, "") + "\u2026"
+      : trimmed.split("\n")[0];
+    const heading = headingText.replace(/[#|[\]]/g, "");
+
+    // Format as blockquote with inline attribution
+    const blockquote = trimmed.split("\n").map((line) => `> ${line}`).join("\n");
+    const sourceName = sourceFile.basename;
+    const newSection = `## ${heading}\n\n${blockquote}\n\n\u2014 [[${sourceName}]]`;
+
+    // Insert before Sources if it exists, else append
+    const sourcesSection = sections.find((s) => s.pinned);
+    const lines = content.split("\n");
+
+    let newContent: string;
+    if (sourcesSection) {
+      const beforeSources = lines.slice(0, sourcesSection.startLine).join("\n");
+      const sourcesLines = lines.slice(sourcesSection.startLine);
+      const sourcesText = sourcesLines.join("\n");
+      // Add wikilink to Sources if not already there
+      const updatedSources = sourcesText.includes(`[[${sourceName}]]`)
+        ? sourcesText
+        : sourcesText.trimEnd() + `\n- [[${sourceName}]]`;
+      newContent = beforeSources.trimEnd() + "\n\n" + newSection + "\n\n" + updatedSources + "\n";
+    } else {
+      const pinnedName = this.data.settings.pinnedSectionName;
+      newContent =
+        content.trimEnd() +
+        "\n\n" +
+        newSection +
+        `\n\n---\n\n## ${pinnedName}\n\n` +
+        `- [[${sourceName}]]` +
+        "\n";
+    }
+
+    await this.setFileContent(projectFile, newContent);
+    new Notice(`Added quote to ${project.name}`);
+  }
+
+  // ── Distill a highlight into an atomic note ──
+
+  async distillHighlight(selection: string, sourceFile: TFile) {
+    const content = await this.app.vault.read(sourceFile);
+    const metadata = parseSourceMetadata(content);
+    const highlightMatch = findMatchingHighlight(selection, content);
+    const defaultFolder = this.data.settings.distillDefaultFolder || "";
+    const activeProject = this.getActiveProject();
+
+    new DistillModal(
+      this.app,
+      selection,
+      metadata,
+      highlightMatch,
+      sourceFile,
+      defaultFolder,
+      activeProject?.name ?? null,
+      async (idea, title, folder, addToEssay) => {
+        const safeName = sanitizeFilename(title);
+        if (!safeName) {
+          new Notice("Note title cannot be empty");
+          return;
+        }
+
+        const targetPath = folder ? `${folder}/${safeName}.md` : `${safeName}.md`;
+
+        if (this.app.vault.getAbstractFileByPath(targetPath)) {
+          new Notice(`File "${targetPath}" already exists`);
+          return;
+        }
+
+        // Build note content
+        const quoteText = highlightMatch ? highlightMatch.cleanText : selection.trim();
+        const lines: string[] = [];
+
+        // Idea (may be empty — user can write later)
+        if (idea.trim()) {
+          lines.push(idea.trim());
+        }
+
+        lines.push("");
+        lines.push("## Reference");
+        lines.push("");
+        lines.push(`> ${quoteText}`);
+        lines.push("");
+        lines.push(`- Source: [[${sourceFile.basename}]]`);
+        if (metadata.author) {
+          lines.push(`- Author: ${metadata.author}`);
+        }
+        if (highlightMatch?.linkMarkdown) {
+          lines.push(`- ${highlightMatch.linkMarkdown}`);
+        }
+        lines.push("");
+
+        await this.app.vault.create(targetPath, lines.join("\n"));
+
+        // Optionally add backlink to source file
+        if (this.data.settings.addBacklinkToSource) {
+          const sourceContent = await this.app.vault.read(sourceFile);
+          const notesHeading = "## Notes";
+          const backlinkLine = `- [[${safeName}]]`;
+
+          if (sourceContent.includes(notesHeading)) {
+            // Append under existing ## Notes section
+            const notesIdx = sourceContent.indexOf(notesHeading);
+            const afterHeading = notesIdx + notesHeading.length;
+            // Find the end of the Notes section (next ## or EOF)
+            const nextSection = sourceContent.indexOf("\n## ", afterHeading);
+            const insertPos = nextSection !== -1 ? nextSection : sourceContent.length;
+            const updatedContent =
+              sourceContent.slice(0, insertPos).trimEnd() +
+              "\n" + backlinkLine + "\n" +
+              (nextSection !== -1 ? "\n" + sourceContent.slice(nextSection + 1) : "");
+            await this.app.vault.modify(sourceFile, updatedContent);
+          } else {
+            // Append ## Notes section at end
+            const updatedContent = sourceContent.trimEnd() + "\n\n" + notesHeading + "\n\n" + backlinkLine + "\n";
+            await this.app.vault.modify(sourceFile, updatedContent);
+          }
+        }
+
+        // Optionally add the new note to the active essay
+        if (addToEssay && activeProject) {
+          const noteFile = this.app.vault.getAbstractFileByPath(targetPath);
+          if (noteFile instanceof TFile) {
+            await this.addNoteToProject(activeProject, noteFile);
+          }
+        }
+
+        new Notice(`Created "${safeName}.md"`);
+      }
+    ).open();
+  }
+
   refreshView() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     for (const leaf of leaves) {
@@ -638,13 +841,15 @@ class AssemblerView extends ItemView {
     });
     setIcon(newBtn, "plus");
     newBtn.addEventListener("click", () => {
-      new NewProjectModal(this.app, async (name) => {
+      const modal = new NewProjectModal(this.app, async (name) => {
+        // Ensure modal is fully removed before async work triggers re-renders
+        modal.close();
+        await sleep(100);
         const filePath = `${name}.md`;
         // Create the file if it doesn't exist
         const existing = this.app.vault.getAbstractFileByPath(filePath);
         if (!existing) {
-          const newFile = await this.app.vault.create(filePath, "");
-          await this.app.workspace.getLeaf().openFile(newFile);
+          await this.app.vault.create(filePath, "");
         }
         const project: Project = {
           id: generateId(),
@@ -656,7 +861,8 @@ class AssemblerView extends ItemView {
         this.plugin.data.activeProjectId = project.id;
         await this.plugin.savePluginData();
         this.renderContent();
-      }).open();
+      });
+      modal.open();
     });
 
     const deleteBtn = btnGroup.createEl("button", {
@@ -664,6 +870,29 @@ class AssemblerView extends ItemView {
       attr: { "aria-label": "Delete project" },
     });
     setIcon(deleteBtn, "trash-2");
+
+    const openBtn = header.createEl("button", {
+      cls: "na-btn na-btn-primary na-open-essay",
+      text: "Open Essay",
+    });
+    setIcon(openBtn.createSpan({ cls: "na-open-essay-icon" }), "file-text");
+    openBtn.addEventListener("click", async () => {
+      const proj = this.plugin.getActiveProject();
+      if (!proj) return;
+      const pFile = this.app.vault.getAbstractFileByPath(proj.filePath);
+      if (!(pFile instanceof TFile)) return;
+      const openLeaves = this.app.workspace.getLeavesOfType("markdown");
+      const existing = openLeaves.find((leaf) => {
+        const v = leaf.view as any;
+        return v?.file?.path === pFile.path;
+      });
+      if (existing) {
+        this.app.workspace.revealLeaf(existing);
+      } else {
+        const leaf = this.app.workspace.getLeaf("tab");
+        await leaf.openFile(pFile);
+      }
+    });
     deleteBtn.addEventListener("click", async () => {
       const project = this.plugin.getActiveProject();
       if (!project) return;
@@ -679,45 +908,6 @@ class AssemblerView extends ItemView {
     });
 
     const project = this.plugin.getActiveProject();
-
-    // ── Source folder selector ──
-    if (project) {
-      const folderRow = header.createDiv({ cls: "na-folder-row" });
-      folderRow.createSpan({ cls: "na-folder-label", text: "Source:" });
-
-      const folderSelect = folderRow.createEl("select", {
-        cls: "na-folder-select",
-      });
-      folderSelect.createEl("option", { text: "All folders", value: "" });
-
-      // Get all folders in the vault
-      const folders: string[] = [];
-      this.app.vault.getAllLoadedFiles().forEach((f) => {
-        if (f.children !== undefined && f.path !== "/") {
-          folders.push(f.path);
-        }
-      });
-      folders.sort();
-      for (const folder of folders) {
-        const opt = folderSelect.createEl("option", {
-          text: folder,
-          value: folder,
-        });
-        if (folder === (project.sourceFolder || "")) {
-          opt.selected = true;
-        }
-      }
-
-      // Select current value
-      if (!project.sourceFolder) {
-        (folderSelect.querySelector('option[value=""]') as HTMLOptionElement).selected = true;
-      }
-
-      folderSelect.addEventListener("change", async () => {
-        project.sourceFolder = folderSelect.value;
-        await this.plugin.savePluginData();
-      });
-    }
 
     // ── Action buttons ──
     const actions = header.createDiv({ cls: "na-actions" });
@@ -737,7 +927,7 @@ class AssemblerView extends ItemView {
           headings.add(s.heading);
         }
       }
-      new NoteSuggestModal(this.app, project, headings, (file) => {
+      new NoteSuggestModal(this.app, project, headings, this.plugin, (file) => {
         this.plugin.addNoteToProject(project, file);
       }).open();
     });
@@ -754,10 +944,10 @@ class AssemblerView extends ItemView {
 
     const exportBtn = actions.createEl("button", {
       cls: "na-btn",
-      text: "Copy Clean",
+      text: "Export Final Essay",
     });
     exportBtn.disabled = !project;
-    exportBtn.setAttribute("title", "Copy essay to clipboard (wikilinks stripped)");
+    exportBtn.setAttribute("title", "Export final essay to clipboard (wikilinks stripped)");
     exportBtn.addEventListener("click", () => {
       if (!project) return;
       this.plugin.copyCleanExport(project);
@@ -779,20 +969,6 @@ class AssemblerView extends ItemView {
         text: `File "${project.filePath}" not found.`,
       });
       return;
-    }
-
-    // Ensure the project file is open and visible in the editor
-    const openLeaves = this.app.workspace.getLeavesOfType("markdown");
-    const existingLeaf = openLeaves.find((leaf) => {
-      const view = leaf.view as any;
-      return view?.file?.path === projectFile.path;
-    });
-    if (existingLeaf) {
-      this.app.workspace.revealLeaf(existingLeaf);
-    } else {
-      const leaf = this.app.workspace.getLeaf("tab");
-      await leaf.openFile(projectFile);
-      this.app.workspace.revealLeaf(leaf);
     }
 
     // Read content and parse sections
@@ -1047,17 +1223,53 @@ class NoteSuggestModal extends FuzzySuggestModal<TFile> {
   project: Project;
   existingHeadings: Set<string>;
   onChoose: (file: TFile) => void;
+  private activeFolder: string;
+  private plugin: NoteAssemblerPlugin;
 
-  constructor(app: App, project: Project, existingHeadings: Set<string>, onChoose: (file: TFile) => void) {
+  constructor(app: App, project: Project, existingHeadings: Set<string>, plugin: NoteAssemblerPlugin, onChoose: (file: TFile) => void) {
     super(app);
     this.project = project;
     this.existingHeadings = existingHeadings;
+    this.plugin = plugin;
     this.onChoose = onChoose;
+    this.activeFolder = project.sourceFolder || "";
     this.setPlaceholder("Search for a note to add...");
   }
 
+  onOpen() {
+    super.onOpen();
+    // Add folder picker above the search input
+    const folderRow = this.modalEl.createDiv({ cls: "na-modal-folder-row" });
+    this.modalEl.prepend(folderRow);
+
+    folderRow.createSpan({ cls: "na-folder-label", text: "Folder:" });
+    const folderSelect = folderRow.createEl("select", { cls: "na-folder-select" });
+    folderSelect.createEl("option", { text: "All folders", value: "" });
+
+    const folders: string[] = [];
+    this.app.vault.getAllLoadedFiles().forEach((f) => {
+      if (f.children !== undefined && f.path !== "/") {
+        folders.push(f.path);
+      }
+    });
+    folders.sort();
+    for (const folder of folders) {
+      const opt = folderSelect.createEl("option", { text: folder, value: folder });
+      if (folder === this.activeFolder) opt.selected = true;
+    }
+
+    folderSelect.addEventListener("change", async () => {
+      this.activeFolder = folderSelect.value;
+      // Persist the choice back to the project
+      this.project.sourceFolder = folderSelect.value;
+      await this.plugin.savePluginData();
+      // Re-trigger the fuzzy search with updated items
+      (this as any).updateSuggestions();
+    });
+  }
+
   getItems(): TFile[] {
-    const folder = this.project.sourceFolder || "";
+    const folder = this.activeFolder;
     return this.app.vault
       .getMarkdownFiles()
       .filter((f) => {
@@ -1104,7 +1316,6 @@ class NewProjectModal extends Modal {
         new Notice("Project name cannot be empty");
         return;
       }
-      this.close();
       this.onSubmit(name);
     };
 
@@ -1237,6 +1448,148 @@ class ExtractSelectionModal extends Modal {
   }
 }
 
+// ── Distill Highlight Modal ──────────────────────────────────
+
+class DistillModal extends Modal {
+  quote: string;
+  metadata: SourceMetadata;
+  highlightMatch: HighlightMatch | null;
+  sourceFile: TFile;
+  defaultFolder: string;
+  activeProjectName: string | null;
+  onSubmit: (idea: string, title: string, folder: string, addToEssay: boolean) => void;
+
+  constructor(
+    app: App,
+    quote: string,
+    metadata: SourceMetadata,
+    highlightMatch: HighlightMatch | null,
+    sourceFile: TFile,
+    defaultFolder: string,
+    activeProjectName: string | null,
+    onSubmit: (idea: string, title: string, folder: string, addToEssay: boolean) => void
+  ) {
+    super(app);
+    this.quote = quote;
+    this.metadata = metadata;
+    this.highlightMatch = highlightMatch;
+    this.sourceFile = sourceFile;
+    this.defaultFolder = defaultFolder;
+    this.activeProjectName = activeProjectName;
+    this.onSubmit = onSubmit;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "Distill Highlight" });
+
+    // Source info line
+    let sourceText = this.metadata.title || this.sourceFile.basename;
+    if (this.metadata.author) {
+      sourceText += ` by ${this.metadata.author}`;
+    }
+    contentEl.createDiv({ cls: "fl-source-info", text: sourceText });
+
+    // Quote display
+    const quoteEl = contentEl.createDiv({ cls: "fl-quote" });
+    quoteEl.setText(this.quote);
+
+    // Idea textarea
+    const textarea = contentEl.createEl("textarea", {
+      cls: "fl-idea-textarea",
+      placeholder: "What does this mean to you?",
+    });
+
+    // Title input
+    const titleInput = contentEl.createEl("input", {
+      type: "text",
+      cls: "fl-title-input",
+      placeholder: "Note title",
+    });
+
+    // Auto-suggest title from idea (debounced)
+    let titleManuallyEdited = false;
+    titleInput.addEventListener("input", () => {
+      titleManuallyEdited = true;
+    });
+
+    const updateTitle = debounce(() => {
+      if (titleManuallyEdited) return;
+      const ideaText = textarea.value.trim();
+      if (ideaText) {
+        const suggested = ideaText.length > 60
+          ? ideaText.substring(0, 60).replace(/\s+\S*$/, "")
+          : ideaText;
+        titleInput.value = suggested;
+      }
+    }, 500, true);
+
+    textarea.addEventListener("input", () => {
+      updateTitle();
+    });
+
+    // Folder select
+    const folderSelect = contentEl.createEl("select", { cls: "na-modal-input" });
+    folderSelect.createEl("option", { text: "Vault root", value: "" });
+
+    const folders: string[] = [];
+    this.app.vault.getAllLoadedFiles().forEach((f) => {
+      if (f.children !== undefined && f.path !== "/") {
+        folders.push(f.path);
+      }
+    });
+    folders.sort();
+    for (const folder of folders) {
+      const opt = folderSelect.createEl("option", { text: folder, value: folder });
+      if (folder === this.defaultFolder) opt.selected = true;
+    }
+
+    // Add to essay checkbox (only shown when a project is active)
+    let addToEssayCheckbox: HTMLInputElement | null = null;
+    if (this.activeProjectName) {
+      const checkRow = contentEl.createDiv({ cls: "fl-check-row" });
+      addToEssayCheckbox = checkRow.createEl("input", { type: "checkbox" });
+      addToEssayCheckbox.id = "fl-add-to-essay";
+      addToEssayCheckbox.checked = true;
+      const label = checkRow.createEl("label", {
+        text: `Add to "${this.activeProjectName}"`,
+      });
+      label.setAttr("for", "fl-add-to-essay");
+    }
+
+    // Button row
+    const btnRow = contentEl.createDiv({ cls: "na-modal-buttons" });
+    const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => this.close());
+
+    const createBtn = btnRow.createEl("button", { cls: "mod-cta", text: "Create Note" });
+
+    const submit = () => {
+      const title = titleInput.value.trim();
+      if (!title) {
+        new Notice("Note title cannot be empty");
+        return;
+      }
+      this.close();
+      this.onSubmit(textarea.value, title, folderSelect.value, addToEssayCheckbox?.checked ?? false);
+    };
+
+    createBtn.addEventListener("click", submit);
+
+    // Enter in title field submits (Shift+Enter in textarea is newline, Enter alone doesn't submit there)
+    titleInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+
+    // Focus textarea after render
+    setTimeout(() => textarea.focus(), 50);
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
 // ── Settings Tab ────────────────────────────────────────────
 
 class NoteAssemblerSettingTab extends PluginSettingTab {
@@ -1280,6 +1633,44 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           })
       );
 
+    // ── Distill settings ──
+    containerEl.createEl("h3", { text: "Distill" });
+
+    new Setting(containerEl)
+      .setName("Default folder for distilled notes")
+      .setDesc("Where new notes from Distill Highlight are saved")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "Vault root");
+        const folders: string[] = [];
+        this.app.vault.getAllLoadedFiles().forEach((f) => {
+          if (f.children !== undefined && f.path !== "/") {
+            folders.push(f.path);
+          }
+        });
+        folders.sort();
+        for (const folder of folders) {
+          dropdown.addOption(folder, folder);
+        }
+        dropdown
+          .setValue(this.plugin.data.settings.distillDefaultFolder)
+          .onChange(async (value) => {
+            this.plugin.data.settings.distillDefaultFolder = value;
+            await this.plugin.savePluginData();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Add backlink to source file")
+      .setDesc("After creating a note, append a link to it under a ## Notes section in the source file")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.data.settings.addBacklinkToSource)
+          .onChange(async (value) => {
+            this.plugin.data.settings.addBacklinkToSource = value;
+            await this.plugin.savePluginData();
+          })
+      );
+
     // Donation / about section
     containerEl.createEl("h3", { text: "Support" });
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
@@ -1306,7 +1697,128 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
   }
 }
 
+// ── Readwise / Distill Helpers ───────────────────────────────
+
+interface SourceMetadata {
+  title: string;
+  author: string;
+  url: string;
+  category: string;
+}
+
+function parseSourceMetadata(content: string): SourceMetadata {
+  const meta: SourceMetadata = { title: "", author: "", url: "", category: "" };
+
+  // Title: from # H1 heading
+  const h1Match = content.match(/^# (.+)$/m);
+  if (h1Match) {
+    meta.title = h1Match[1].trim();
+  }
+
+  // Look for ## Metadata section
+  const metadataStart = content.indexOf("## Metadata");
+  if (metadataStart !== -1) {
+    const metadataEnd = content.indexOf("\n## ", metadataStart + 1);
+    const metadataBlock = metadataEnd !== -1
+      ? content.slice(metadataStart, metadataEnd)
+      : content.slice(metadataStart);
+
+    // Full Title (overrides H1 if present)
+    const fullTitleMatch = metadataBlock.match(/^- Full Title:\s*(.+)$/m);
+    if (fullTitleMatch) {
+      meta.title = fullTitleMatch[1].trim();
+    }
+
+    // Author: strip [[ ]] brackets
+    const authorMatch = metadataBlock.match(/^- Author:\s*(.+)$/m);
+    if (authorMatch) {
+      meta.author = authorMatch[1].trim().replace(/\[\[|\]\]/g, "");
+    }
+
+    // URL
+    const urlMatch = metadataBlock.match(/^- URL:\s*(.+)$/m);
+    if (urlMatch) {
+      meta.url = urlMatch[1].trim();
+    }
+
+    // Category
+    const categoryMatch = metadataBlock.match(/^- Category:\s*(.+)$/m);
+    if (categoryMatch) {
+      meta.category = categoryMatch[1].trim().replace(/^#/, "");
+    }
+  }
+
+  return meta;
+}
+
+interface HighlightMatch {
+  cleanText: string;
+  linkMarkdown: string;
+}
+
+function findMatchingHighlight(selection: string, content: string): HighlightMatch | null {
+  // Find ## Highlights section
+  const highlightsStart = content.indexOf("## Highlights");
+  if (highlightsStart === -1) return null;
+
+  const highlightsEnd = content.indexOf("\n## ", highlightsStart + 1);
+  const highlightsBlock = highlightsEnd !== -1
+    ? content.slice(highlightsStart, highlightsEnd)
+    : content.slice(highlightsStart);
+
+  // Parse bullet points (handling multi-line continuation)
+  const lines = highlightsBlock.split("\n");
+  const bullets: string[] = [];
+  let current = "";
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("- ")) {
+      if (current) bullets.push(current);
+      current = line.slice(2);
+    } else if (current && line.startsWith("  ")) {
+      // Continuation line
+      current += " " + line.trim();
+    } else if (line.trim() === "") {
+      if (current) bullets.push(current);
+      current = "";
+    }
+  }
+  if (current) bullets.push(current);
+
+  // Normalize selection for matching (collapse whitespace)
+  const normalizedSelection = selection.replace(/\s+/g, " ").trim();
+
+  for (const bullet of bullets) {
+    // Check if selection is a substring of this bullet's text
+    const normalizedBullet = bullet.replace(/\s+/g, " ").trim();
+    if (!normalizedBullet.includes(normalizedSelection) && !normalizedSelection.includes(normalizedBullet.replace(/\s*\(?\[.*$/, "").trim())) {
+      continue;
+    }
+
+    // Extract trailing link: ([View Highlight](url)) or ([Location NNN](url))
+    const linkMatch = bullet.match(/\(\[(View Highlight|Location \d+)]\((https?:\/\/[^)]+)\)\)\s*$/);
+    const linkMarkdown = linkMatch ? `[${linkMatch[1]}](${linkMatch[2]})` : "";
+
+    // Clean text: remove the trailing link portion
+    let cleanText = bullet;
+    if (linkMatch && linkMatch.index !== undefined) {
+      cleanText = bullet.slice(0, linkMatch.index).trim();
+    }
+    // Also remove leading ==highlight== markers if present
+    cleanText = cleanText.replace(/==/g, "");
+
+    return { cleanText, linkMarkdown };
+  }
+
+  return null;
+}
+
 // ── Helpers ─────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
