@@ -27,7 +27,9 @@ The research found that practitioners who produce the best work **separate sourc
 │  │ ...               │   │
 │  └─────────────────┘    │
 │                         │
-│  [+ Add Source]         │  ← fuzzy search (existing flow)
+│  [+ Add Source]         │  ← fuzzy search (fallback)
+│                         │  ← also: right-click note or
+│                         │    drag from file tree
 ├─────────────────────────┤
 │  OUTLINE                │  ← existing: essay structure
 │  ┌─────────────────┐    │
@@ -45,8 +47,15 @@ The research found that practitioners who produce the best work **separate sourc
 
 ### Source Queue Behavior
 
-**Adding sources:**
-- "Add Source" opens the existing fuzzy search modal
+**Adding sources (three entry points, ranked by naturalness):**
+
+1. **Right-click a note → "Send to [Project] sources"** — the primary way. You're reading a note, it clicks for an essay, right-click → pick which project. If only one active project, it's a single menu item. Multiple projects = submenu.
+
+2. **Drag from file tree → Sources sidebar** — the tactile way. Grab a note from Obsidian's left-hand file explorer, drop it onto the Sources section. Obsidian supports drag events on its file tree items — we register the sidebar as a drop target. Visual feedback on hover (highlight border, "drop to add" hint).
+
+3. **"+ Add Source" fuzzy search** — the fallback / power-user way. Opens the existing fuzzy search modal for when you know the note name but aren't looking at it. Button lives at the bottom of the Sources section.
+
+**All three methods:**
 - Selected note goes into the Sources list, NOT into the essay file
 - Sources are stored in plugin data (per-project), not in the markdown file
 - Sources can also arrive via Flint (spark → add to essay) or Distill (highlight → add to essay)
@@ -155,6 +164,12 @@ This is the "where formlessness becomes form" step (Doto's step 4).
 ### Flint → Cairn
 Already built. Spark notes can be added to essay projects via checkboxes. With v0.4, they'd go into the **Sources queue** instead of directly into the file. User then decides when/how to pull them into the essay.
 
+**Two new Flint integrations in the v0.4 sidebar:**
+
+1. **"Surprise" button** (next to + Add Source) — pulls a random note from your vault and adds it to the Sources queue. Same orphan-weighted selection logic as Flint's shuffle. The idea: you're working on an essay, feeling stuck, and inject a random note to see if it sparks something. A mini-Flint inside Cairn's workflow. Lower friction than switching to Flint and back.
+
+2. **"Strike these" on adjacent sections** — when two `##` sections are next to each other in the Outline, a subtle collision icon (⚡) appears between them. Click it → opens a Flint-style prompt: "What connects these two ideas?" with both section titles visible. Your response becomes a new `###` item bridging the two sections. This is literally the essay-level version of Flint's core mechanic — seeing what emerges from juxtaposition — but applied to your own developing argument rather than raw notes.
+
 ### Facet (Distill) → Cairn
 Already built. Multi-project checkboxes in Distill modal. With v0.4:
 - If "Add to essay" is checked, the distilled note goes into the Sources queue
@@ -173,7 +188,7 @@ These are the primary way content moves from sources into the essay. The whole-n
 | Holiday: spread cards on table | Sources queue = the table. Browsable, rearrangeable, separate from the draft. |
 | Holiday: arrange into structure | Drag from Sources → Outline sections |
 | Ahrens: decide topic from clusters | (Future) Cluster detection: "you have 12 notes about X" |
-| Ahrens: transfer to working surface | Add Source = transfer to working surface |
+| Ahrens: transfer to working surface | Right-click / drag to Sources = transfer to working surface |
 | Ahrens: translate to coherent prose | Essay file = only your prose + refined quotes |
 | Forte: search Second Brain for packets | Sources queue = curated search results |
 | Forte: distill before using | "Distill first" choice when moving source → essay |
@@ -188,22 +203,26 @@ These are the primary way content moves from sources into the essay. The whole-n
 ### Phase 1: Source Queue (sidebar split)
 1. Add `sources: ProjectSource[]` to Project data model
 2. Split sidebar into Sources section + Outline section
-3. "Add Source" puts notes in queue (not in file)
-4. Source preview panel (click to expand/read)
-5. Three actions: "Add as-is" / "Distill first" / "Pull quote"
-6. Source status tracking (unread → active → done)
+3. Right-click context menu: "Send to [Project] sources"
+4. Drag-from-file-tree → Sources drop target
+5. "Add Source" fuzzy search (fallback)
+6. Source preview panel (click to expand/read)
+7. Four actions: "Add as-is" / "Distill first" / "Distill selection" / "Quote selection"
+8. Source status tracking (unread → active → done)
 
 ### Phase 2: Nested Sections
-7. Parse `##` and `###` from essay file as two-level structure
-8. Two-level sidebar display (collapsible `##` with `###` children)
-9. Drag `###` items between `##` sections
-10. "Add note here" targets a specific `##` section
-11. Drag from Sources queue onto a `##` heading
+9. Parse `##` and `###` from essay file as two-level structure
+10. Two-level sidebar display (collapsible `##` with `###` children)
+11. Drag `###` items between `##` sections
+12. "Add note here" targets a specific `##` section
+13. Drag from Sources queue onto a `##` heading
 
-### Phase 3: Polish
-12. Source count badges
-13. Keyboard shortcuts (next source, distill, skip)
-14. "What am I ready to write about?" — scan vault for note clusters (stretch goal)
+### Phase 3: Flint Integration + Polish
+14. "Surprise" button — random note injection into Sources queue
+15. "Strike these" — collision prompt between adjacent `##` sections
+16. Source count badges
+17. Keyboard shortcuts (next source, distill, skip)
+18. "What am I ready to write about?" — scan vault for note clusters (stretch goal)
 
 ## What Stays the Same
 
@@ -212,7 +231,7 @@ These are the primary way content moves from sources into the essay. The whole-n
 - Drag-to-reorder for `##` sections
 - Pinned Sources section at bottom of essay
 - Export Final Essay
-- Right-click context menu (Add quote, Distill highlight)
+- Right-click context menu (Add quote, Distill highlight) — now extended with "Send to [Project] sources"
 - Open Essay button
 - All existing settings
 - Blockquote pattern for pulled-in content
