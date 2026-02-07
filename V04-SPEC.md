@@ -66,21 +66,34 @@ The research found that practitioners who produce the best work **separate sourc
 - Source titles are clickable links to the original note
 
 **Moving from Sources → Essay:**
-**Whole-note actions** (from the source list item):
 
-1. **Add as-is** — dumps full note as blockquote into the essay (current v0.3 behavior). For when the note is already atomic/distilled.
+### Inline Source Attribution
 
-2. **Distill first** — opens Distill modal with the full note content. You write your thinking, a new distilled note is created, and THAT note gets added to the essay as a blockquote. Source stays in queue (you might distill multiple insights from one source).
+Every piece of content pulled from a source gets a minimal inline link back to the original note, using Obsidian's aliased wikilink syntax:
 
-**Selection actions** (from text selected in the sidebar preview):
+```markdown
+> "The city's share rises to $290K by 2027" [[UDOT transit grant memo|*]]
+```
+
+Renders as a blockquote with a tiny clickable **\*** at the end. Hover to see the source note name, click to jump to it. Unobtrusive but always traceable — essential for journalism (fact-checking) and useful for essays (revisiting context).
+
+The `## Sources` section at the bottom remains the complete bibliography. Inline `[[source|*]]` links are the footnotes.
+
+### Whole-note actions (from the source list item):
+
+1. **Add as-is** — dumps full note as blockquote into the essay with `[[source|*]]` attribution. For when the note is already atomic/distilled.
+
+2. **Distill first** — opens Distill modal with the full note content. You write your thinking, a new distilled note is created, and THAT note gets added to the essay with `[[source|*]]` tracing back to the original. Source stays in queue (you might distill multiple insights from one source).
+
+### Selection actions (from text selected in the sidebar preview):
 
 When you select text in the source preview, two actions appear (right-click context menu or floating buttons):
 
-3. **Distill selection** — opens Distill modal with just the selected passage as the quote. You write what it means to you, a distilled note is created and placed in the essay. The source stays in the queue.
+3. **Distill selection** — opens Distill modal with just the selected passage as the quote. You write what it means to you, a distilled note is created and placed in the essay with `[[source|*]]`. The source stays in the queue.
 
-4. **Quote selection** — the selected text goes directly into the essay as a blockquote, attributed to the source. No modal, instant. For when the quote speaks for itself and you'll write around it later.
+4. **Quote selection** — the selected text goes directly into the essay as a blockquote with `[[source|*]]`. No modal, instant. For when the quote speaks for itself and you'll write around it later.
 
-Both selection actions target the currently active `##` section in the Outline (or append at the end if none is selected). The source's `## Sources` wikilink is added to the essay's pinned Sources section.
+All actions target the currently active `##` section in the Outline (or append at the end if none is selected). The source's `## Sources` wikilink is added to the essay's pinned Sources section.
 
 **After processing:**
 - Sources that have been fully used get a checkmark / muted styling
