@@ -37,16 +37,21 @@
 
 .na-new-essay-link {
   background: none;
-  border: none;
-  color: var(--text-accent);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   cursor: pointer;
-  padding: 0 0 6px;
+  padding: 4px 8px;
   display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 .na-new-essay-link:hover {
-  text-decoration: underline;
+  color: var(--text-accent);
+  border-color: var(--interactive-accent);
 }
 
 .na-btn {

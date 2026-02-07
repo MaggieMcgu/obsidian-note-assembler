@@ -559,6 +559,8 @@ export default class NoteAssemblerPlugin extends Plugin {
       `^#\\s+${escapeRegex(sourceFile.basename)}\\s*\n?`
     );
     sourceContent = sourceContent.replace(headingPattern, "").trim();
+    // Strip ## Reference section (distilled notes include metadata there)
+    sourceContent = sourceContent.replace(/\n## Reference[\s\S]*$/, "").trim();
 
     const content = await this.getFileContent(projectFile);
     const sections = this.parseSections(content);
