@@ -218,9 +218,14 @@ export default class NoteAssemblerPlugin extends Plugin {
       })
     );
 
-    // Apply class on startup once workspace is ready
+    // Restore sidebar + heading class once workspace is ready
     this.app.workspace.onLayoutReady(() => {
-      this.updateProjectFileClass();
+      // Re-open sidebar if it was closed (e.g. plugin toggled off/on)
+      if (this.data.projects.length > 0) {
+        this.activateView();
+      }
+      // Apply heading class after a tick so the view is mounted
+      setTimeout(() => this.updateProjectFileClass(), 100);
     });
   }
 
