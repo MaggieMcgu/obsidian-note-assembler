@@ -20,6 +20,7 @@
 
 .na-project-select {
   flex: 1;
+  min-width: 0;
   padding: 4px 8px;
   border-radius: 4px;
   border: 1px solid var(--background-modifier-border);
@@ -31,6 +32,7 @@
 .na-btn-group {
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .na-open-essay {
