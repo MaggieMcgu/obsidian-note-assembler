@@ -250,12 +250,8 @@ export default class NoteAssemblerPlugin extends Plugin {
     for (const leaf of leaves) {
       const file = (leaf.view as any)?.file;
       if (file && file.path === project.filePath) {
-        const container = leaf.view.containerEl?.querySelector(
-          ".markdown-source-view"
-        );
-        if (container) {
-          container.classList.add("cairn-project-file");
-        }
+        // Add class to containerEl — it's an ancestor of all CM elements
+        leaf.view.containerEl.classList.add("cairn-project-file");
         break;
       }
     }
