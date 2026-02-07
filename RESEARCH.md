@@ -140,3 +140,46 @@ The universal claim: this feels like "editing, not composition" because the hard
 | Doto | Project file = Notes file sandbox | Grouping-under-headings = nested sections. Feed-back = extract-back |
 
 **Strongest signal:** Three of five practitioners (Matuschak, Doto, Ahrens) describe a workflow where structure emerges from grouping notes under headings — exactly the nested sections model planned for v0.4.
+
+---
+
+## Core Insight: The Essay Lives Between the Notes
+
+The Zettelkasten isn't a filing system — it's a thinking partner. You put two ideas next to each other and the juxtaposition creates something neither one contains alone. Luhmann described his slip-box as a "communication partner." Ahrens: "The slip-box forces us to make connections." Matuschak: dense linking IS the thinking.
+
+**For Cairn, this means: the essay isn't the notes. The essay is what you write BETWEEN the notes.**
+
+The connective tissue — "Note A says X, but Note B complicates that because Y, which means Z" — is the original thinking. The notes are prompts. The gaps are where the writing lives.
+
+### How the blockquote pattern supports this
+
+The v0.3 pull-in change (notes as blockquotes + writing space) accidentally creates the right structure:
+
+```markdown
+## Identity is fluid
+> [Note A as blockquote — source material]
+
+[YOUR INSIGHT: how this connects to the next idea]
+
+## But social pressure freezes it
+> [Note B as blockquote — source material]
+
+[YOUR INSIGHT: what the collision of A + B reveals]
+```
+
+The blockquotes are two voices in conversation. The blank space between them is where the *third note* — your original idea — gets born. You read A, you read B, and you write what the collision reveals.
+
+### What this reframes
+
+- **Drag-and-drop isn't reordering — it's juxtaposing.** You're arranging collisions between ideas, not just sequencing content.
+- **"Add Section" isn't "add a blank section" — it's "add a thinking space."** A place to write the connection between two ideas you've placed next to each other.
+- **The most important part of the file is the empty space.** Not the notes, not the headings — the gaps between them. The UI should make those gaps feel inviting, not like missing content.
+- **The pitch changes.** Not "assemble notes into essays." Instead: **"Put ideas in conversation and write what emerges."**
+
+### Design questions this raises
+
+- Should the space between sections feel more prominent? More inviting?
+- Should "Add Section" be renamed to "Add Connection" or "Write Between"?
+- Could the sidebar visualize the *connections* between adjacent notes, not just the notes themselves?
+- When the user drags a note next to another, should Cairn prompt: "What does this combination make you think?"
+- Is there a way to surface *surprising* juxtapositions — notes the user might not have placed together but that share unexpected links?
