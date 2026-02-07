@@ -1,6 +1,6 @@
 {
   "name": "note-assembler",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Compose essays from your notes — pull, arrange, extract, export",
   "main": "main.js",
   "scripts": {

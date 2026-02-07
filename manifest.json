@@ -1,7 +1,7 @@
 {
   "id": "note-assembler",
   "name": "Cairn — Essay Composer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "minAppVersion": "0.15.0",
   "description": "Compose essays from your notes — pull from your Zettelkasten, arrange, extract, export. Built for atomic note workflows.",
   "author": "Maggie McGuire",
