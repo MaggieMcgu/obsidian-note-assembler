@@ -217,6 +217,11 @@ export default class NoteAssemblerPlugin extends Plugin {
         this.updateProjectFileClass();
       })
     );
+
+    // Apply class on startup once workspace is ready
+    this.app.workspace.onLayoutReady(() => {
+      this.updateProjectFileClass();
+    });
   }
 
   onunload() {
