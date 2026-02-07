@@ -27,6 +27,7 @@ interface NoteAssemblerSettings {
   maxRelatedNotes: number;
   distillDefaultFolder: string;
   addBacklinkToSource: boolean;
+  exportIncludeHeadings: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -34,6 +35,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   maxRelatedNotes: 6,
   distillDefaultFolder: "",
   addBacklinkToSource: false,
+  exportIncludeHeadings: true,
 };
 
 interface NoteAssemblerData {
@@ -198,9 +200,48 @@ export default class NoteAssemblerPlugin extends Plugin {
         const project = this.getActiveProject();
         if (project && file instanceof TFile && file.path === project.filePath) {
           this.refreshView();
+          // Re-apply heading class after DOM settles from file change
+          setTimeout(() => this.updateProjectFileClass(), 50);
         }
       })
     );
+
+    // Tag editor with CSS class when viewing the active project file
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.updateProjectFileClass();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.updateProjectFileClass();
+      })
+    );
+  }
+
+  onunload() {
+    // Remove project-file class from all editors on plugin unload
+    document.querySelectorAll(".cairn-project-file").forEach((el) => {
+      el.classList.remove("cairn-project-file");
+    });
+  }
+
+  /** Add/remove .cairn-project-file on the active editor container */
+  updateProjectFileClass() {
+    // Remove from all editors first
+    document.querySelectorAll(".cairn-project-file").forEach((el) => {
+      el.classList.remove("cairn-project-file");
+    });
+    const project = this.getActiveProject();
+    if (!project) return;
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile || activeFile.path !== project.filePath) return;
+    const activeLeafEl = document.querySelector(
+      ".workspace-leaf.mod-active .markdown-source-view"
+    );
+    if (activeLeafEl) {
+      activeLeafEl.classList.add("cairn-project-file");
+    }
   }
 
   async activateView() {
@@ -543,9 +584,14 @@ export default class NoteAssemblerPlugin extends Plugin {
     }
 
     const lines = content.split("\n");
+    const includeHeadings = this.data.settings.exportIncludeHeadings;
     const parts: string[] = [];
     for (const section of draggable) {
-      const sectionLines = lines.slice(section.startLine, section.endLine);
+      let sectionLines = lines.slice(section.startLine, section.endLine);
+      if (!includeHeadings) {
+        // Strip the ## heading line
+        sectionLines = sectionLines.filter((l) => !l.match(/^## .+$/));
+      }
       parts.push(sectionLines.join("\n"));
     }
 
@@ -623,7 +669,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     const headingText = trimmed.length > 60
       ? trimmed.substring(0, 60).replace(/\s+\S*$/, "") + "\u2026"
       : trimmed.split("\n")[0];
-    const heading = headingText.replace(/[#|[\]]/g, "");
+    const heading = "Quote: " + headingText.replace(/[#|[\]]/g, "");
 
     // Format as blockquote with inline attribution
     const blockquote = trimmed.split("\n").map((line) => `> ${line}`).join("\n");
@@ -831,6 +877,7 @@ class AssemblerView extends ItemView {
       this.plugin.data.activeProjectId = select.value || null;
       await this.plugin.savePluginData();
       this.renderContent();
+      this.plugin.updateProjectFileClass();
     });
 
     const btnGroup = projectRow.createDiv({ cls: "na-btn-group" });
@@ -1242,7 +1289,7 @@ class NoteSuggestModal extends FuzzySuggestModal<TFile> {
     const folderRow = this.modalEl.createDiv({ cls: "na-modal-folder-row" });
     this.modalEl.prepend(folderRow);
 
-    folderRow.createSpan({ cls: "na-folder-label", text: "Folder:" });
+    folderRow.createSpan({ cls: "na-folder-label", text: "Main Source:" });
     const folderSelect = folderRow.createEl("select", { cls: "na-folder-select" });
     folderSelect.createEl("option", { text: "All folders", value: "" });
 
@@ -1629,6 +1676,21 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.data.settings.maxRelatedNotes = value;
+            await this.plugin.savePluginData();
+          })
+      );
+
+    // ── Export settings ──
+    containerEl.createEl("h3", { text: "Export" });
+
+    new Setting(containerEl)
+      .setName("Include headings in export")
+      .setDesc("When off, section headings (## lines) are stripped from the exported essay")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.data.settings.exportIncludeHeadings)
+          .onChange(async (value) => {
+            this.plugin.data.settings.exportIncludeHeadings = value;
             await this.plugin.savePluginData();
           })
       );

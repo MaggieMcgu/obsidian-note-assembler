@@ -478,6 +478,17 @@
   margin: 0;
 }
 
+/* ── Editor: structural heading styling (project file only) ── */
+
+.cairn-project-file .HyperMD-header-2 {
+  border-left: 3px solid var(--interactive-accent);
+  padding-left: 8px;
+}
+
+.cairn-project-file .HyperMD-header-2 .cm-header-2 {
+  color: var(--text-muted);
+}
+
 /* ── Settings tab ── */
 
 .na-settings-donate {
