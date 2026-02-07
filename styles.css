@@ -485,15 +485,15 @@
 /* ── Editor: structural heading styling (project file only) ── */
 
 .cairn-project-file .HyperMD-header-2 {
-  border-left: 2px solid var(--text-faint);
-  padding: 8px 0 4px 8px;
+  border-left: 2px solid var(--text-faint) !important;
+  padding: 8px 0 4px 8px !important;
   margin-top: 12px !important;
 }
 
 .cairn-project-file .HyperMD-header-2 .cm-header-2 {
-  color: var(--text-faint);
-  font-size: 0.85rem;
-  font-weight: 500;
+  color: var(--text-faint) !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
 }
 
 /* ── Settings tab ── */
