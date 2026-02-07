@@ -1400,6 +1400,22 @@ class AssemblerView extends ItemView {
     }
   }
 
+  // ── Heading toggle (shared by Sources + Outline) ──
+
+  private addHeadingToggle(parent: HTMLElement) {
+    const btn = parent.createEl("button", {
+      cls: "na-heading-toggle clickable-icon" + (this.plugin.data.settings.hideHeadings ? " na-heading-toggle-active" : ""),
+      attr: { "aria-label": "Toggle section headings in editor" },
+    });
+    setIcon(btn, this.plugin.data.settings.hideHeadings ? "eye-off" : "eye");
+    btn.addEventListener("click", () => {
+      this.plugin.data.settings.hideHeadings = !this.plugin.data.settings.hideHeadings;
+      this.plugin.savePluginData();
+      this.plugin.updateProjectFileClass();
+      this.renderView();
+    });
+  }
+
   // ── Sources Section ──
 
   private async renderSourcesSection(
@@ -1414,6 +1430,8 @@ class AssemblerView extends ItemView {
       cls: "na-section-label",
       text: `SOURCES (${project.sources.length})`,
     });
+
+    this.addHeadingToggle(sectionHeader);
 
     // Source list (also a drop target)
     const list = section.createDiv({ cls: "na-source-list" });
@@ -1676,17 +1694,7 @@ class AssemblerView extends ItemView {
     const sectionHeader = section.createDiv({ cls: "na-section-header" });
     sectionHeader.createSpan({ cls: "na-section-label", text: "OUTLINE" });
 
-    const hideBtn = sectionHeader.createEl("button", {
-      cls: "na-heading-toggle clickable-icon" + (this.plugin.data.settings.hideHeadings ? " na-heading-toggle-active" : ""),
-      attr: { "aria-label": "Toggle section headings in editor" },
-    });
-    setIcon(hideBtn, this.plugin.data.settings.hideHeadings ? "eye-off" : "eye");
-    hideBtn.addEventListener("click", () => {
-      this.plugin.data.settings.hideHeadings = !this.plugin.data.settings.hideHeadings;
-      this.plugin.savePluginData();
-      this.plugin.updateProjectFileClass();
-      this.renderView();
-    });
+    this.addHeadingToggle(sectionHeader);
 
     // Action buttons (top)
     const actions = section.createDiv({ cls: "na-actions" });
