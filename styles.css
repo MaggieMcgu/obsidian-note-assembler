@@ -469,11 +469,24 @@
   outline: none;
 }
 
+.fl-project-section {
+  margin: 8px 0 12px;
+}
+
+.fl-project-label {
+  display: block;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
 .fl-check-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 4px 0 12px;
+  margin: 2px 0;
+  padding: 2px 0;
   font-size: var(--font-ui-small);
   color: var(--text-muted);
 }
@@ -491,7 +504,7 @@
 
 .cairn-project-file .HyperMD-header-2 .cm-header-2 {
   color: var(--text-faint) !important;
-  font-size: inherit !important;
+  font-size: var(--font-text-size) !important;
   font-weight: 500 !important;
 }
 

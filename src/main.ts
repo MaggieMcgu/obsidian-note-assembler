@@ -28,6 +28,7 @@ interface NoteAssemblerSettings {
   distillDefaultFolder: string;
   addBacklinkToSource: boolean;
   exportIncludeHeadings: boolean;
+  showProjectsInDistill: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -36,6 +37,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   distillDefaultFolder: "",
   addBacklinkToSource: false,
   exportIncludeHeadings: true,
+  showProjectsInDistill: true,
 };
 
 interface NoteAssemblerData {
@@ -867,7 +869,6 @@ You've seen how Cairn works. Here's how to start:
     const metadata = parseSourceMetadata(content);
     const highlightMatch = findMatchingHighlight(selection, content);
     const defaultFolder = this.data.settings.distillDefaultFolder || "";
-    const activeProject = this.getActiveProject();
 
     new DistillModal(
       this.app,
@@ -876,8 +877,9 @@ You've seen how Cairn works. Here's how to start:
       highlightMatch,
       sourceFile,
       defaultFolder,
-      activeProject?.name ?? null,
-      async (idea, title, folder, addToEssay) => {
+      this.data.settings.showProjectsInDistill ? this.data.projects : [],
+      this.data.activeProjectId,
+      async (idea, title, folder, selectedProjectIds) => {
         const safeName = sanitizeFilename(title);
         if (!safeName) {
           new Notice("Note title cannot be empty");
@@ -941,11 +943,16 @@ You've seen how Cairn works. Here's how to start:
           }
         }
 
-        // Optionally add the new note to the active essay
-        if (addToEssay && activeProject) {
+        // Add to selected essay projects
+        if (selectedProjectIds.length > 0) {
           const noteFile = this.app.vault.getAbstractFileByPath(targetPath);
           if (noteFile instanceof TFile) {
-            await this.addNoteToProject(activeProject, noteFile);
+            for (const projId of selectedProjectIds) {
+              const proj = this.data.projects.find((p) => p.id === projId);
+              if (proj) {
+                await this.addNoteToProject(proj, noteFile);
+              }
+            }
           }
         }
 
@@ -1669,8 +1676,9 @@ class DistillModal extends Modal {
   highlightMatch: HighlightMatch | null;
   sourceFile: TFile;
   defaultFolder: string;
-  activeProjectName: string | null;
-  onSubmit: (idea: string, title: string, folder: string, addToEssay: boolean) => void;
+  projects: Project[];
+  activeProjectId: string | null;
+  onSubmit: (idea: string, title: string, folder: string, selectedProjectIds: string[]) => void;
 
   constructor(
     app: App,
@@ -1679,8 +1687,9 @@ class DistillModal extends Modal {
     highlightMatch: HighlightMatch | null,
     sourceFile: TFile,
     defaultFolder: string,
-    activeProjectName: string | null,
-    onSubmit: (idea: string, title: string, folder: string, addToEssay: boolean) => void
+    projects: Project[],
+    activeProjectId: string | null,
+    onSubmit: (idea: string, title: string, folder: string, selectedProjectIds: string[]) => void
   ) {
     super(app);
     this.quote = quote;
@@ -1688,7 +1697,8 @@ class DistillModal extends Modal {
     this.highlightMatch = highlightMatch;
     this.sourceFile = sourceFile;
     this.defaultFolder = defaultFolder;
-    this.activeProjectName = activeProjectName;
+    this.projects = projects;
+    this.activeProjectId = activeProjectId;
     this.onSubmit = onSubmit;
   }
 
@@ -1757,17 +1767,20 @@ class DistillModal extends Modal {
       if (folder === this.defaultFolder) opt.selected = true;
     }
 
-    // Add to essay checkbox (only shown when a project is active)
-    let addToEssayCheckbox: HTMLInputElement | null = null;
-    if (this.activeProjectName) {
-      const checkRow = contentEl.createDiv({ cls: "fl-check-row" });
-      addToEssayCheckbox = checkRow.createEl("input", { type: "checkbox" });
-      addToEssayCheckbox.id = "fl-add-to-essay";
-      addToEssayCheckbox.checked = true;
-      const label = checkRow.createEl("label", {
-        text: `Add to "${this.activeProjectName}"`,
-      });
-      label.setAttr("for", "fl-add-to-essay");
+    // Add to essay projects (shown when any projects exist)
+    const projectCheckboxes: Map<string, HTMLInputElement> = new Map();
+    if (this.projects.length > 0) {
+      const projectSection = contentEl.createDiv({ cls: "fl-project-section" });
+      projectSection.createEl("label", { cls: "fl-project-label", text: "Add to essays:" });
+      for (const project of this.projects) {
+        const checkRow = projectSection.createDiv({ cls: "fl-check-row" });
+        const cb = checkRow.createEl("input", { type: "checkbox" });
+        cb.id = `fl-project-${project.id}`;
+        cb.checked = project.id === this.activeProjectId;
+        const label = checkRow.createEl("label", { text: project.name });
+        label.setAttr("for", cb.id);
+        projectCheckboxes.set(project.id, cb);
+      }
     }
 
     // Button row
@@ -1783,8 +1796,12 @@ class DistillModal extends Modal {
         new Notice("Note title cannot be empty");
         return;
       }
+      const selectedIds: string[] = [];
+      projectCheckboxes.forEach((cb, id) => {
+        if (cb.checked) selectedIds.push(id);
+      });
       this.close();
-      this.onSubmit(textarea.value, title, folderSelect.value, addToEssayCheckbox?.checked ?? false);
+      this.onSubmit(textarea.value, title, folderSelect.value, selectedIds);
     };
 
     createBtn.addEventListener("click", submit);
@@ -1895,6 +1912,18 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           .setValue(this.plugin.data.settings.addBacklinkToSource)
           .onChange(async (value) => {
             this.plugin.data.settings.addBacklinkToSource = value;
+            await this.plugin.savePluginData();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Show essay projects in Distill")
+      .setDesc("Show project checkboxes when distilling a highlight. Disable if you only use Distill without essays.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.data.settings.showProjectsInDistill)
+          .onChange(async (value) => {
+            this.plugin.data.settings.showProjectsInDistill = value;
             await this.plugin.savePluginData();
           })
       );
