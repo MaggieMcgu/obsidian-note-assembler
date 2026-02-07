@@ -57,13 +57,21 @@ The research found that practitioners who produce the best work **separate sourc
 - Source titles are clickable links to the original note
 
 **Moving from Sources → Essay:**
-When you're ready to use a source, you have three choices:
+**Whole-note actions** (from the source list item):
 
 1. **Add as-is** — dumps full note as blockquote into the essay (current v0.3 behavior). For when the note is already atomic/distilled.
 
-2. **Distill first** — opens Distill modal with the note content. You write your thinking, a new distilled note is created, and THAT note gets added to the essay as a blockquote. Source stays in queue (you might distill multiple insights from one source).
+2. **Distill first** — opens Distill modal with the full note content. You write your thinking, a new distilled note is created, and THAT note gets added to the essay as a blockquote. Source stays in queue (you might distill multiple insights from one source).
 
-3. **Pull quote** — select specific text from the source preview → "Add quote to essay." Only the selected passage goes in, not the whole note.
+**Selection actions** (from text selected in the sidebar preview):
+
+When you select text in the source preview, two actions appear (right-click context menu or floating buttons):
+
+3. **Distill selection** — opens Distill modal with just the selected passage as the quote. You write what it means to you, a distilled note is created and placed in the essay. The source stays in the queue.
+
+4. **Quote selection** — the selected text goes directly into the essay as a blockquote, attributed to the source. No modal, instant. For when the quote speaks for itself and you'll write around it later.
+
+Both selection actions target the currently active `##` section in the Outline (or append at the end if none is selected). The source's `## Sources` wikilink is added to the essay's pinned Sources section.
 
 **After processing:**
 - Sources that have been fully used get a checkmark / muted styling
@@ -152,8 +160,11 @@ Already built. Multi-project checkboxes in Distill modal. With v0.4:
 - If "Add to essay" is checked, the distilled note goes into the Sources queue
 - OR: option to send it directly to a specific `##` section (if the user knows where it belongs)
 
-### Source Queue → Distill
-New in v0.4. You're browsing a source in the sidebar, you select a passage, you hit "Distill" — same modal, but the output goes into the essay at a specific section.
+### Source Preview → Essay (Selection Actions)
+New in v0.4. You're browsing a source in the sidebar preview:
+- **Select text → Distill** — opens Distill modal with the selected passage. Your distilled insight goes into the essay at the active section.
+- **Select text → Quote** — selected passage goes directly into the essay as a blockquote. Instant, no modal.
+These are the primary way content moves from sources into the essay. The whole-note "Add as-is" is the fallback for already-refined notes.
 
 ## Workflow Mapping (Research → Features)
 
