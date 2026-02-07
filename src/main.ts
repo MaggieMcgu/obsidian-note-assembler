@@ -236,7 +236,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     });
   }
 
-  /** Add/remove .cairn-project-file on the active editor container */
+  /** Add/remove .cairn-project-file on the editor showing the project file */
   updateProjectFileClass() {
     // Remove from all editors first
     document.querySelectorAll(".cairn-project-file").forEach((el) => {
@@ -244,13 +244,20 @@ export default class NoteAssemblerPlugin extends Plugin {
     });
     const project = this.getActiveProject();
     if (!project) return;
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile || activeFile.path !== project.filePath) return;
-    const activeLeafEl = document.querySelector(
-      ".workspace-leaf.mod-active .markdown-source-view"
-    );
-    if (activeLeafEl) {
-      activeLeafEl.classList.add("cairn-project-file");
+    // Find the leaf showing the project file (don't rely on mod-active —
+    // the sidebar steals active status when clicked)
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      const file = (leaf.view as any)?.file;
+      if (file && file.path === project.filePath) {
+        const container = leaf.view.containerEl?.querySelector(
+          ".markdown-source-view"
+        );
+        if (container) {
+          container.classList.add("cairn-project-file");
+        }
+        break;
+      }
     }
   }
 
@@ -1219,7 +1226,7 @@ class AssemblerView extends ItemView {
       // Title — click to scroll to section in editor
       const title = card.createSpan({
         cls: "na-note-title",
-        text: truncate(section.heading, 40),
+        text: section.heading,
       });
       title.setAttribute("title", section.heading);
 
