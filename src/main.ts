@@ -353,8 +353,10 @@ export default class NoteAssemblerPlugin extends Plugin {
     const content = await this.getFileContent(projectFile);
     const sections = this.parseSections(content);
 
-    // Build new section
-    const newSection = `## ${sourceFile.basename}\n\n${sourceContent}`;
+    // Build new section — note content as blockquote (source material),
+    // blank line below for the writer to rewrite in their own words
+    const quoted = sourceContent.split("\n").map((l) => `> ${l}`).join("\n");
+    const newSection = `## ${sourceFile.basename}\n\n${quoted}\n\n`;
 
     // Insert before Sources if it exists, else append
     const sourcesSection = sections.find((s) => s.pinned);
