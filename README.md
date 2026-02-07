@@ -50,6 +50,24 @@ Keep the sidebar open while navigating source notes. Right-click selected text f
 
 Then hit **Open Essay** to return and write your connective tissue.
 
+### Collect vs. Distill
+
+These two actions are intentionally separate — they map to different stages of thinking:
+
+- **Collect** (Add Quote) — Grab raw material. You're reading, something resonates, you toss it into the essay as-is. Fast, low friction, no thinking required yet. The quote sits there with its attribution, waiting.
+- **Distill** (Distill Highlight) — Do the thinking. You stop and ask "what does this actually mean to me?" The output is *your* idea, in *your* words, with the source attached as a reference. That's a permanent addition to your vault, not just your essay.
+
+If you're familiar with Tiago Forte's CODE framework (Capture, Organize, Distill, Express), Cairn maps directly to it:
+
+| CODE | Cairn |
+|------|-------|
+| **Capture** | Readwise highlights, reading, bookmarks |
+| **Organize** | Pull in notes, rearrange in sidebar |
+| **Distill** | Distill Highlight — turn quotes into your own ideas |
+| **Express** | Write the essay, Export Final Essay |
+
+"Add Quote" lives between Capture and Organize — you're collecting raw material into your essay's structure. "Distill" is explicitly the D — the moment someone else's words become your knowledge. You can mix both freely in one session.
+
 ### Distill Highlight
 Turn highlights into atomic notes in your own words:
 1. Select a quote in any file (works especially well with Readwise imports)
