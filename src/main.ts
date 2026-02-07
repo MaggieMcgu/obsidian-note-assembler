@@ -311,8 +311,16 @@ export default class NoteAssemblerPlugin extends Plugin {
       status: "unread",
     });
     await this.savePluginData();
+    // Auto-open preview for the newly added source
+    const newIndex = project.sources.length - 1;
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    for (const leaf of leaves) {
+      if (leaf.view instanceof AssemblerView) {
+        (leaf.view as AssemblerView).previewSourceIndex = newIndex;
+      }
+    }
     this.refreshView();
-    new Notice(`Added "${sourceFile.basename}" to sources`);
+    new Notice(`Added "${sourceFile.basename}" to sources — click actions below to add to essay`);
   }
 
   async removeSourceFromQueue(project: Project, sourceIndex: number) {
@@ -346,6 +354,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       project.sources[idx].status = "active";
       await this.savePluginData();
     }
+    this.switchToTab("outline");
   }
 
   async distillSource(project: Project, source: ProjectSource) {
@@ -432,7 +441,8 @@ export default class NoteAssemblerPlugin extends Plugin {
       await this.savePluginData();
     }
 
-    new Notice(`Quoted to ${project.name}`);
+    this.switchToTab("outline");
+    new Notice(`Quoted to outline as "## ${heading}"`);
   }
 
   async distillSelectionFromSource(
@@ -561,7 +571,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     }
 
     await this.setFileContent(projectFile, newContent);
-    new Notice(`Added "${sourceFile.basename}" to ${project.name}`);
+    new Notice(`Added "## ${sourceFile.basename}" to outline`);
   }
 
   // ── Add a blank section ──
@@ -1133,6 +1143,15 @@ From the source preview, you have four options:
     }
   }
 
+  switchToTab(tab: "sources" | "outline") {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    for (const leaf of leaves) {
+      if (leaf.view instanceof AssemblerView) {
+        (leaf.view as AssemblerView).activeTab = tab;
+      }
+    }
+  }
+
   async loadPluginData() {
     const saved = await this.loadData();
     this.data = Object.assign({}, DEFAULT_DATA, saved);
@@ -1155,7 +1174,8 @@ From the source preview, you have four options:
 class AssemblerView extends ItemView {
   plugin: NoteAssemblerPlugin;
   private draggedIndex: number | null = null;
-  private previewSourceIndex: number | null = null;
+  previewSourceIndex: number | null = null;
+  activeTab: "sources" | "outline" = "sources";
 
   debouncedRender = debounce(() => this.renderContent(), 300, true);
 
@@ -1320,11 +1340,35 @@ class AssemblerView extends ItemView {
       return;
     }
 
-    // ── SOURCES section ──
-    await this.renderSourcesSection(container, project);
+    // ── Tab bar ──
+    const tabBar = container.createDiv({ cls: "na-tab-bar" });
 
-    // ── OUTLINE section ──
-    await this.renderOutlineSection(container, project, projectFile);
+    const sourcesTab = tabBar.createEl("button", {
+      cls:
+        "na-tab" + (this.activeTab === "sources" ? " na-tab-active" : ""),
+      text: `Sources${project.sources.length > 0 ? ` (${project.sources.length})` : ""}`,
+    });
+    sourcesTab.addEventListener("click", () => {
+      this.activeTab = "sources";
+      this.renderContent();
+    });
+
+    const outlineTab = tabBar.createEl("button", {
+      cls:
+        "na-tab" + (this.activeTab === "outline" ? " na-tab-active" : ""),
+      text: "Outline",
+    });
+    outlineTab.addEventListener("click", () => {
+      this.activeTab = "outline";
+      this.renderContent();
+    });
+
+    // ── Active tab content ──
+    if (this.activeTab === "sources") {
+      await this.renderSourcesSection(container, project);
+    } else {
+      await this.renderOutlineSection(container, project, projectFile);
+    }
   }
 
   // ── Sources Section ──
@@ -1499,7 +1543,7 @@ class AssemblerView extends ItemView {
 
           menu.addItem((item) => {
             item
-              .setTitle("Quote selection")
+              .setTitle("\u2192 Quote to essay")
               .setIcon("quote")
               .onClick(() => {
                 this.plugin.quoteSelectionFromSource(
@@ -1512,7 +1556,7 @@ class AssemblerView extends ItemView {
 
           menu.addItem((item) => {
             item
-              .setTitle("Distill selection")
+              .setTitle("\u2192 Distill to essay")
               .setIcon("sparkles")
               .onClick(() => {
                 this.plugin.distillSelectionFromSource(
@@ -1533,7 +1577,7 @@ class AssemblerView extends ItemView {
 
         const addAsIsBtn = previewActions.createEl("button", {
           cls: "na-btn",
-          text: "Add as-is",
+          text: "\u2192 Add to essay",
         });
         addAsIsBtn.addEventListener("click", () => {
           this.plugin.addSourceAsIs(project, capturedSource);
@@ -1541,7 +1585,7 @@ class AssemblerView extends ItemView {
 
         const distillBtn = previewActions.createEl("button", {
           cls: "na-btn",
-          text: "Distill first",
+          text: "\u2192 Distill to essay",
         });
         distillBtn.addEventListener("click", () => {
           this.plugin.distillSource(project, capturedSource);

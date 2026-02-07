@@ -137,6 +137,37 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* ── Tab Bar ── */
+
+.na-tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.na-tab {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.na-tab:hover {
+  color: var(--text-normal);
+}
+
+.na-tab-active {
+  color: var(--text-normal);
+  border-bottom-color: var(--interactive-accent);
+}
+
 /* ── Section Headers (Sources / Outline) ── */
 
 .na-sources-section,
