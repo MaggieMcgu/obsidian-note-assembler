@@ -396,10 +396,19 @@ export default class NoteAssemblerPlugin extends Plugin {
         : trimmed.split("\n")[0];
     const heading = headingText.replace(/[#|[\]]/g, "");
 
-    const blockquote = trimmed
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n");
+    const qLines = trimmed.split("\n");
+    const blockquote =
+      qLines.length === 1
+        ? `> \u201C${trimmed}\u201D`
+        : qLines
+            .map((line, i) =>
+              i === 0
+                ? `> \u201C${line}`
+                : i === qLines.length - 1
+                  ? `> ${line}\u201D`
+                  : `> ${line}`
+            )
+            .join("\n");
     const sourceName = sourceFile.basename;
     const newSection = `## ${heading}\n\n${blockquote}\n[[${sourceName}|*]]\n`;
 
@@ -1532,64 +1541,86 @@ class AssemblerView extends ItemView {
         });
         previewBody.setText(previewContent);
 
-        // Right-click on selected text → Quote / Distill
         const capturedSource = source;
-        previewBody.addEventListener("contextmenu", (e) => {
-          const sel = window.getSelection()?.toString()?.trim();
-          if (!sel) return;
 
-          e.preventDefault();
-          const menu = new Menu();
-
-          menu.addItem((item) => {
-            item
-              .setTitle("\u2192 Quote to essay")
-              .setIcon("quote")
-              .onClick(() => {
-                this.plugin.quoteSelectionFromSource(
-                  project,
-                  capturedSource,
-                  sel
-                );
-              });
-          });
-
-          menu.addItem((item) => {
-            item
-              .setTitle("\u2192 Distill to essay")
-              .setIcon("sparkles")
-              .onClick(() => {
-                this.plugin.distillSelectionFromSource(
-                  project,
-                  capturedSource,
-                  sel
-                );
-              });
-          });
-
-          menu.showAtMouseEvent(e);
-        });
-
-        // Whole-note action buttons
+        // Action buttons
         const previewActions = previewContainer.createDiv({
           cls: "na-preview-actions",
         });
 
-        const addAsIsBtn = previewActions.createEl("button", {
+        // Row 1: whole-note actions
+        const wholeRow = previewActions.createDiv({
+          cls: "na-action-row",
+        });
+        wholeRow.createSpan({
+          cls: "na-action-label",
+          text: "Whole note:",
+        });
+        const addAsIsBtn = wholeRow.createEl("button", {
           cls: "na-btn",
-          text: "\u2192 Add to essay",
+          text: "\u2192 Add whole note to essay",
         });
         addAsIsBtn.addEventListener("click", () => {
           this.plugin.addSourceAsIs(project, capturedSource);
         });
-
-        const distillBtn = previewActions.createEl("button", {
+        const distillBtn = wholeRow.createEl("button", {
           cls: "na-btn",
           text: "\u2192 Distill to essay",
         });
         distillBtn.addEventListener("click", () => {
           this.plugin.distillSource(project, capturedSource);
         });
+
+        // Row 2: selection actions (disabled until text selected)
+        const selRow = previewActions.createDiv({
+          cls: "na-action-row",
+        });
+        selRow.createSpan({
+          cls: "na-action-label",
+          text: "Selection:",
+        });
+        const quoteSelBtn = selRow.createEl("button", {
+          cls: "na-btn",
+          text: "\u2192 Quote to essay",
+        });
+        quoteSelBtn.disabled = true;
+        quoteSelBtn.addEventListener("click", () => {
+          const sel = window.getSelection()?.toString()?.trim();
+          if (sel) {
+            this.plugin.quoteSelectionFromSource(
+              project,
+              capturedSource,
+              sel
+            );
+          }
+        });
+        const distillSelBtn = selRow.createEl("button", {
+          cls: "na-btn",
+          text: "\u2192 Distill to essay",
+        });
+        distillSelBtn.disabled = true;
+        distillSelBtn.addEventListener("click", () => {
+          const sel = window.getSelection()?.toString()?.trim();
+          if (sel) {
+            this.plugin.distillSelectionFromSource(
+              project,
+              capturedSource,
+              sel
+            );
+          }
+        });
+
+        // Enable selection buttons when text is selected in preview
+        const updateSelectionButtons = () => {
+          const sel = window.getSelection();
+          const hasSelection =
+            sel &&
+            sel.toString().trim().length > 0 &&
+            previewBody.contains(sel.anchorNode);
+          quoteSelBtn.disabled = !hasSelection;
+          distillSelBtn.disabled = !hasSelection;
+        };
+        document.addEventListener("selectionchange", updateSelectionButtons);
       }
     }
 

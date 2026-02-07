@@ -342,10 +342,24 @@
 }
 
 .na-preview-actions {
-  display: flex;
-  gap: 4px;
   padding: 6px 8px;
   border-top: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.na-action-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.na-action-label {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  flex-shrink: 0;
+  min-width: 64px;
 }
 
 .na-preview-actions .na-btn {
@@ -353,6 +367,11 @@
   text-align: center;
   font-size: var(--font-ui-smaller);
   padding: 3px 6px;
+}
+
+.na-preview-actions .na-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 /* ── Outline Empty ── */
