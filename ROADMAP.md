@@ -26,11 +26,59 @@
 - Renamed "Copy Clean" → "Export Final Essay"
 - Settings: distill default folder, backlink-to-source, export headings toggle
 
-## Next
+## Next (v0.3.x polish)
 
-- [ ] **Preview in fuzzy search** — Show 1-2 line snippet below each note name in the search modal so you can tell similar notes apart
-- [ ] **Sources as frontmatter option** — Move source tracking to YAML frontmatter instead of visible `## Sources` section
-- [ ] **Nest notes as h3 children** — Pull a note into an existing section as supplementary material (`### ` heading) rather than a peer `## ` section
+- [ ] **Better quote headings** — Use `## Quote from [Source]` instead of truncating quote text into heading
+- [ ] **Preview in fuzzy search** — Show 1-2 line snippet below each note name in the search modal
+
+## v0.4 — Nested Sections + Source Queue
+
+The big architectural shift. Driven by thinking through the CODE (Capture, Organize, Distill, Express) workflow and how Cairn serves the Express stage.
+
+### The insight
+
+Cairn currently treats Express as assembly: arrange note blocks, export. But real Express is: outline → reference notes → write original prose. Notes should *inform* the writing, not *become* the writing. And two workflows need support:
+
+**Workflow A — "I have distilled notes, time to write":** Outline sections → drag notes into sections → write around them → export.
+
+**Workflow B — "I have raw sources, need to think through them":** Seed sources → read each → distill on the fly into sections → rearrange → write → export.
+
+Both workflows use the same architecture.
+
+### Nested sections
+
+`##` headings become essay structure (containers). `###` or content blocks become items within sections. The sidebar becomes two-level: sections you can reorder, items you can drag between sections.
+
+**File format:**
+```markdown
+## The Problem
+### Note Title A
+[distilled content]
+### My observation
+[original writing]
+
+## The Shift
+### Note Title B
+[distilled content]
+```
+
+### Source queue
+
+Sources section flips from output (backlinks that accumulate) to input (a curated reading queue you seed first). Pick 3-5 source documents at project start. Browse them one by one, distilling as you go. Processed sources get marked/faded. Visual progress: "3 of 5 sources processed."
+
+### What changes
+
+- Parser: handle `##` (sections) and `###` (items within) as hierarchy
+- Sidebar: two-level list — sections as containers, items as draggable children
+- Drag model: drag items between sections, drag sections to reorder
+- "Add note" lands inside a section, not as a new peer section
+- Sources: seeded up front, checkable, browsable
+
+### Open questions
+
+- Should Sources live in the file (markdown-native, portable) or plugin data (cleaner file, more flexibility)?
+- How does "add note to section" work in the UI? Drop target per section? Context menu?
+- What's the right visual treatment for the two-level sidebar?
 
 ## Someday
 
@@ -38,4 +86,4 @@
 - [ ] **Backlink-aware suggestions** — Surface notes that link TO your included notes, not just FROM them
 - [ ] **Tag/graph suggestions** — Suggest notes that share tags or graph proximity with included content
 - [ ] **Export to file** — Write clean export to a new file instead of clipboard
-- [ ] **Multiple pinned sections** — Support pinning sections other than Sources (e.g., Bibliography, Notes)
+- [ ] **Note preview pane** — View a note alongside the essay without pulling it into the file (reference mode)
