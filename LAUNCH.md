@@ -1,24 +1,28 @@
-# Cairn — Launch Copy
+# Cairn — Launch Copy (v0.3)
 
 ## Obsidian Forum Post (Share & Showcase)
 
-**Title:** Cairn — compose essays from your Zettelkasten notes
+**Title:** Cairn — compose essays from your highlights, notes, and quotes
 
-I built this plugin because I kept hitting the same wall: I had hundreds of atomic notes but no good way to assemble them into an actual essay inside Obsidian.
+I built this plugin because I kept hitting the same wall: I had hundreds of atomic notes and Readwise highlights, but no good way to assemble them into an actual essay inside Obsidian.
 
-Longform is great for novels, but essays are different. You're not writing scenes in order — you're pulling scattered ideas together, finding the argument, rearranging until it clicks. And sometimes the best ideas emerge *during* the writing, not before it.
+Longform is great for novels, but essays are different. You're pulling scattered ideas together, finding the argument, rearranging until it clicks. And the best insights often emerge *during* writing, not before it.
 
-**Cairn** gives you a sidebar to:
+**Cairn** gives you the full loop — from highlights to finished essay:
 
-- **Pull in notes** — fuzzy search your vault, add them as sections
-- **Rearrange** — drag or use arrow buttons to build your argument
-- **Extract back** — when a new idea emerges while writing, pull it out as a standalone note with one click
-- **Follow the trail** — a "Related Notes" panel surfaces wikilinked notes you haven't added yet
-- **Export clean** — copy to clipboard with wikilinks stripped, ready for publishing
+1. **Distill highlights** — Select a quote in any file (Readwise imports work great), right-click → "Distill highlight to note." Write your idea in your own words. Cairn creates an atomic note with a Reference section linking back to the source.
+2. **Pull in notes** — Fuzzy search your vault, add notes as essay sections.
+3. **Browse & collect** — Keep the sidebar open while reading source notes. Right-click to add quotes directly to your essay with attribution.
+4. **Rearrange** — Drag or use arrow buttons to build your argument.
+5. **Write** — Hit "Open Essay" to jump back. Edit directly in the file. The sidebar reflects your structure live.
+6. **Extract back** — When a new idea emerges while writing, extract it as a standalone note. The Zettelkasten loop completes.
+7. **Export** — Copy to clipboard with wikilinks stripped, headings optionally removed, ready for publishing.
 
-Your essay is a normal markdown file. No hidden markers, no compile step, no lock-in. The sidebar just reads your `## ` headings and gives you tools to work with them.
+Your essay is a normal markdown file. No hidden markers, no compile step, no lock-in.
 
-The key feature that I haven't seen elsewhere: **extract-back**. You're writing about water conservation and three paragraphs crystallize into their own idea about snowpack cycles. Click the arrow, pick a folder, and it becomes a standalone note in your vault. Your essay keeps its text. The Zettelkasten loop completes.
+The workflow I didn't expect: **browsing with the sidebar open**. You navigate through source notes, reading highlights and ideas, adding quotes and distilled notes as you go. Then hit "Open Essay" to return and write the connective tissue. It feels like building a case — collecting evidence, then writing your argument.
+
+Includes a **sample project** that walks through every feature if you want to try it hands-on.
 
 GitHub: https://github.com/MaggieMcgu/obsidian-note-assembler
 
@@ -28,53 +32,72 @@ I'm a journalist (small-town newspaper publisher), not a developer, so I'd love 
 
 ## Reddit r/ObsidianMD
 
-**Title:** I built Cairn, an essay composer for turning Zettelkasten notes into finished writing — and extracting new ideas back out
+**Title:** I built Cairn — an essay composer that turns highlights into notes and notes into essays, all inside Obsidian
 
-I kept seeing the same question on forums: "How do I actually write from my notes?" The answers were always embeds (read-only), copy-paste (loses connection), or Longform (built for novels, not essays).
+I kept seeing the same question: "How do I actually write from my notes?" The answers were always embeds (read-only), copy-paste (loses connection), or Longform (built for novels).
 
-So I built Cairn. Sidebar panel, pull in notes, rearrange, write, extract new ideas back to your vault. Your essay stays a plain markdown file.
+So I built Cairn. The full loop:
 
-The feature I'm most excited about: **extract-back**. Writing generates new ideas. When a section crystallizes into its own concept, one click extracts it as a standalone note. The vault grows from your writing, not just into it.
+**Read → Highlight → Distill → Note → Essay**
 
-[GitHub link] | [Screenshot/GIF]
+- **Distill highlights** — Select a quote, right-click, write your idea in your own words. Creates an atomic note with source reference. Works great with Readwise imports.
+- **Browse & collect** — Keep the sidebar open while reading. Right-click quotes to add them to your essay. Hit "Open Essay" to return and write.
+- **Extract back** — Writing generates ideas. When a section crystallizes into its own concept, one click extracts it as a standalone note. Your vault grows from your writing.
+- **Export clean** — Clipboard, wikilinks stripped, headings optional.
 
-Would love to hear how others handle the notes-to-essay workflow. What's your process?
+Your essay stays a plain markdown file. There's a sample project that walks you through every feature.
+
+[GitHub link](https://github.com/MaggieMcgu/obsidian-note-assembler) | [Screenshot/GIF]
+
+The workflow that surprised me: browsing source notes with the sidebar open, collecting quotes and distilled ideas as you go, then returning to write the connective tissue. It feels less like "writing" and more like building a case.
+
+How do you handle the highlights-to-essay pipeline? Curious what others do.
 
 ---
 
 ## Reddit r/Zettelkasten
 
-**Title:** Completing the loop: an Obsidian essay composer for writing from atomic notes (and extracting ideas back)
+**Title:** Completing the loop: highlights → atomic notes → essays → new notes (Obsidian plugin)
 
-Ahrens talks about how the Zettelkasten should make writing almost mechanical — you've already done the thinking in your notes, now you just assemble and connect. But the "assemble" step is where most tools fall apart.
+Ahrens talks about how the Zettelkasten should make writing almost mechanical — you've already done the thinking in your notes, now you just assemble. But there's a gap before that: turning *highlights* into *your own ideas*. And a gap after: capturing the new ideas that emerge *during* composition.
 
-I built an Obsidian plugin called Cairn that tries to close this gap. Pull notes into an essay outline, rearrange sections, write transitions, and — crucially — extract new ideas back into your vault as standalone notes when they emerge during writing.
+I built an Obsidian plugin called Cairn that tries to close both gaps:
 
-That last part is what I haven't seen elsewhere. The best Zettelkasten insights often come *during* composition, not before it. Extract-back lets you capture them without leaving your essay.
+**Before writing:** Select a highlight, right-click → "Distill." Write the idea in your own words. Cairn creates an atomic note with the quote and source reference attached. This is the thinking step that turns someone else's words into your knowledge.
 
-[GitHub link]
+**During writing:** Pull notes into an essay, rearrange sections, write transitions. When new ideas emerge, extract them back into your vault as standalone notes.
 
-Curious how others handle this phase of the workflow. Do you write inside your note system or export to somewhere else?
+**The browsing workflow:** Keep the sidebar open while navigating source notes. Add quotes directly to your essay. Distill highlights into new notes. Then return to write. It mirrors how Ahrens describes working with a slip-box — you're in conversation with your notes.
+
+[GitHub link](https://github.com/MaggieMcgu/obsidian-note-assembler)
+
+The distill step is what I haven't seen elsewhere. Most tools skip straight from "capture" to "write." But the thinking happens in between — when you put someone else's highlight into your own words. That's the moment the idea becomes yours.
+
+Curious how others handle this phase.
 
 ---
 
 ## Blog/Newsletter Pitch (for PKM bloggers)
 
-**Subject:** New Obsidian plugin: Cairn — the missing Zettelkasten-to-essay tool
+**Subject:** Cairn v0.3 — the highlights-to-essay pipeline for Obsidian
 
 Hi [Name],
 
-I built an Obsidian plugin that I think your readers would find useful — Cairn bridges the gap between atomic notes and finished essays.
+I built an Obsidian plugin that I think your readers would find useful — Cairn handles the full pipeline from highlights to finished essays.
 
-The core insight: most writing tools assume you're creating from scratch. But Zettelkasten writers have already done the thinking — they need composition tools, not blank pages. Cairn gives you a sidebar to pull notes in, rearrange your argument, and export clean text.
+Most writing tools assume you're creating from scratch. But PKM writers have already done the reading — they need tools for the messy middle: turning highlights into ideas, assembling ideas into arguments, and capturing the new insights that emerge during writing.
 
-The feature that makes it different: **extract-back**. When new ideas emerge during writing (and they always do), one click extracts a section back into a standalone vault note. The essay keeps its text. Your Zettelkasten grows from your writing.
+Cairn adds three things I haven't seen elsewhere:
 
-It's free, open source, and works as a normal Obsidian community plugin.
+1. **Distill** — Select a highlight, write your idea in your own words, get an atomic note with the source reference. This is the thinking step most tools skip.
+2. **Browse & collect** — Keep the sidebar open while reading source notes. Right-click to add quotes or distill highlights. Return to write when ready.
+3. **Extract back** — When new ideas emerge during writing, one click makes them standalone vault notes.
+
+It's free, open source, and includes a sample project that walks through every feature. Your essay stays a normal markdown file — no lock-in.
 
 GitHub: https://github.com/MaggieMcgu/obsidian-note-assembler
 
-Happy to answer questions or provide screenshots/a demo if you'd like to cover it.
+Happy to provide screenshots, a demo, or answer questions.
 
 Best,
 Maggie McGuire
@@ -96,15 +119,17 @@ Moab Sun News | moabsunnews.com
 ## Social (Twitter/Mastodon/Bluesky)
 
 **Short version:**
-Built an Obsidian plugin for composing essays from Zettelkasten notes. Pull in notes, rearrange, write — then extract new ideas back out as standalone notes. The thinking loop, completed. https://github.com/MaggieMcgu/obsidian-note-assembler
+Built an Obsidian plugin for the full highlights-to-essay loop. Distill quotes into atomic notes. Browse & collect with the sidebar open. Write your argument. Extract new ideas back out. https://github.com/MaggieMcgu/obsidian-note-assembler
 
 **Thread version:**
-1/ I kept hitting the same wall: hundreds of atomic notes, no good way to turn them into an essay inside Obsidian.
+1/ The gap in most PKM tools: you capture highlights, you have notes, but the step from "collected ideas" to "finished essay" is... just stare at a blank page?
 
-2/ Longform is great for novels. Embeds are read-only. Copy-paste loses the connection. So I built Cairn — an essay composer.
+2/ I built Cairn for Obsidian. It handles the full loop: Highlight → Distill (write the idea in your own words) → Collect → Arrange → Write → Extract new ideas back out.
 
-3/ The key feature: extract-back. Writing generates ideas. When a section crystallizes into its own concept, one click makes it a standalone note. Your Zettelkasten grows FROM your writing.
+3/ The workflow I didn't expect: browsing source notes with the sidebar open. Add quotes, distill highlights, collect pieces — then hit "Open Essay" and write the connective tissue. It feels like building a case.
 
-4/ It's free, open source, and your essay stays a normal markdown file. No lock-in.
+4/ The distill step is the key. Most tools skip from "capture" to "write." But the thinking happens when you put someone else's highlight into your own words. That's the moment the idea becomes yours.
+
+5/ Free, open source, includes a sample project to try it hands-on. Your essay is a normal markdown file — no lock-in.
 
 https://github.com/MaggieMcgu/obsidian-note-assembler
