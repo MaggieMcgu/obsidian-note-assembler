@@ -38,6 +38,7 @@ interface NoteAssemblerSettings {
   exportIncludeHeadings: boolean;
   showProjectsInDistill: boolean;
   hideHeadings: boolean;
+  newEssayTemplate: string;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -48,6 +49,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   exportIncludeHeadings: true,
   showProjectsInDistill: true,
   hideHeadings: false,
+  newEssayTemplate: "",
 };
 
 interface NoteAssemblerData {
@@ -1608,7 +1610,7 @@ class AssemblerView extends ItemView {
 
     const openBtn = projectRow.createEl("button", {
       cls: "na-btn na-btn-primary",
-      text: "Open Essay",
+      text: "Open Note",
     });
     openBtn.addEventListener("click", async () => {
       const pFile = this.app.vault.getAbstractFileByPath(project.filePath);
@@ -1624,6 +1626,16 @@ class AssemblerView extends ItemView {
         const leaf = this.app.workspace.getLeaf("tab");
         await leaf.openFile(pFile);
       }
+    });
+
+    // New Essay row — separate from the open/switch controls
+    const newEssayRow = header.createDiv({ cls: "na-new-essay-row" });
+    const newBtn = newEssayRow.createEl("button", {
+      cls: "na-new-essay-link",
+      text: "+ New Essay",
+    });
+    newBtn.addEventListener("click", () => {
+      this.openNewProjectModal();
     });
 
     const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
@@ -1670,26 +1682,19 @@ class AssemblerView extends ItemView {
 
     const finishBtn = footer.createEl("button", {
       cls: "na-btn na-footer-btn na-footer-finish",
-      text: "Finish Essay",
+      text: "Close Project",
     });
     finishBtn.addEventListener("click", async () => {
       const confirmed = await confirmModal(
         this.app,
-        "Finish Essay",
-        `Remove "${project.name}" from Cairn? Your essay note stays in your vault \u2014 Cairn just stops managing it.`
+        "Close Project",
+        `Remove "${project.name}" from Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
       );
       if (confirmed) {
         this.plugin.untrackProject(project.id);
       }
     });
 
-    const newBtn = footer.createEl("button", {
-      cls: "na-btn na-footer-btn na-footer-new",
-      text: "New Essay",
-    });
-    newBtn.addEventListener("click", () => {
-      this.openNewProjectModal();
-    });
   }
 
   private openNewProjectModal() {
@@ -1699,7 +1704,15 @@ class AssemblerView extends ItemView {
       const filePath = `${name}.md`;
       const existing = this.app.vault.getAbstractFileByPath(filePath);
       if (!existing) {
-        await this.app.vault.create(filePath, "");
+        let content = "";
+        const tplPath = this.plugin.data.settings.newEssayTemplate;
+        if (tplPath) {
+          const tplFile = this.app.vault.getAbstractFileByPath(tplPath);
+          if (tplFile instanceof TFile) {
+            content = await this.app.vault.read(tplFile);
+          }
+        }
+        await this.app.vault.create(filePath, content);
       }
       const project: Project = {
         id: generateId(),
@@ -3128,6 +3141,29 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
             await this.plugin.savePluginData();
           })
       );
+
+    new Setting(containerEl)
+      .setName("New essay template")
+      .setDesc(
+        "A note whose content is copied into each new essay. Leave blank to start empty."
+      )
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "None");
+        const mdFiles: string[] = [];
+        this.app.vault.getMarkdownFiles().forEach((f) => {
+          mdFiles.push(f.path);
+        });
+        mdFiles.sort();
+        for (const fp of mdFiles) {
+          dropdown.addOption(fp, fp);
+        }
+        dropdown
+          .setValue(this.plugin.data.settings.newEssayTemplate)
+          .onChange(async (value) => {
+            this.plugin.data.settings.newEssayTemplate = value;
+            await this.plugin.savePluginData();
+          });
+      });
 
     containerEl.createEl("h3", { text: "Export" });
 
