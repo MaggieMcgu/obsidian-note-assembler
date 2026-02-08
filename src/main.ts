@@ -103,6 +103,19 @@ export default class NoteAssemblerPlugin extends Plugin {
       this.activateView();
     });
 
+    this.addRibbonIcon("sparkles", "Distill highlight to note", () => {
+      const view = this.app.workspace.getActiveViewOfType(ItemView) as any;
+      const selection = view?.editor?.getSelection?.()?.trim();
+      if (!selection) {
+        new Notice("Select some text first, then click Distill");
+        return;
+      }
+      const file = view?.file;
+      if (file instanceof TFile) {
+        this.distillHighlight(selection, file);
+      }
+    });
+
     this.addCommand({
       id: "open-note-assembler",
       name: "Open Cairn",
