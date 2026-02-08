@@ -82,6 +82,13 @@ interface ContentBlock {
   headingText?: string; // for headings: text without ##
 }
 
+interface HeadingGroup {
+  heading: ContentBlock;
+  children: ContentBlock[];
+  headingIndex: number;       // index in flat blocks array
+  childIndices: number[];     // indices in flat blocks array
+}
+
 // ── Plugin ──────────────────────────────────────────────────
 
 export default class NoteAssemblerPlugin extends Plugin {
@@ -258,6 +265,22 @@ export default class NoteAssemblerPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       if (this.data.projects.length > 0) {
         this.activateView();
+        // Also open the active project file if it isn't already open
+        const project = this.getActiveProject();
+        if (project) {
+          const pFile = this.app.vault.getAbstractFileByPath(project.filePath);
+          if (pFile instanceof TFile) {
+            const openLeaves = this.app.workspace.getLeavesOfType("markdown");
+            const alreadyOpen = openLeaves.some((leaf) => {
+              const v = leaf.view as any;
+              return v?.file?.path === pFile.path;
+            });
+            if (!alreadyOpen) {
+              const leaf = this.app.workspace.getLeaf("tab");
+              leaf.openFile(pFile);
+            }
+          }
+        }
       }
       setTimeout(() => this.updateProjectFileClass(), 100);
     });
@@ -605,6 +628,35 @@ export default class NoteAssemblerPlugin extends Plugin {
     return blocks;
   }
 
+  // ── Group blocks by heading (for collapsible outline) ──
+
+  groupBlocks(blocks: ContentBlock[]): { orphans: number[]; groups: HeadingGroup[] } {
+    const orphans: number[] = [];
+    const groups: HeadingGroup[] = [];
+
+    let currentGroup: HeadingGroup | null = null;
+
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i].type === "heading") {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = {
+          heading: blocks[i],
+          children: [],
+          headingIndex: i,
+          childIndices: [],
+        };
+      } else if (currentGroup) {
+        currentGroup.children.push(blocks[i]);
+        currentGroup.childIndices.push(i);
+      } else {
+        orphans.push(i);
+      }
+    }
+    if (currentGroup) groups.push(currentGroup);
+
+    return { orphans, groups };
+  }
+
   // ── Get file content from editor buffer if open, else disk ──
 
   async getFileContent(file: TFile): Promise<string> {
@@ -924,6 +976,71 @@ export default class NoteAssemblerPlugin extends Plugin {
         .join("\n")
         .replace(/\n{3,}/g, "\n\n")
         .trimEnd() + "\n";
+    await this.setFileContent(projectFile, newContent);
+  }
+
+  // ── Reorder: move a group of blocks (heading + children) to a new position ──
+
+  async moveBlockGroup(project: Project, fromIndices: number[], toIndex: number) {
+    if (fromIndices.length === 0) return;
+    if (fromIndices.includes(toIndex)) return;
+
+    const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
+    if (!(projectFile instanceof TFile)) return;
+
+    const content = await this.getFileContent(projectFile);
+    const blocks = this.parseBlocks(content);
+    const lines = content.split("\n");
+
+    // Collect all lines for the group (heading + children are contiguous)
+    const firstBlock = blocks[fromIndices[0]];
+    const lastBlock = blocks[fromIndices[fromIndices.length - 1]];
+    const groupLines = lines.slice(firstBlock.startLine, lastBlock.endLine);
+
+    // Remove group from original position
+    lines.splice(firstBlock.startLine, lastBlock.endLine - firstBlock.startLine);
+
+    // Re-parse to find insertion point after removal
+    const afterRemoval = lines.join("\n");
+    const remainingBlocks = this.parseBlocks(afterRemoval);
+
+    let insertLine: number;
+    if (toIndex >= remainingBlocks.length) {
+      // Insert at end (before pinned section)
+      const pinnedName = this.data.settings.pinnedSectionName;
+      const afterLines = afterRemoval.split("\n");
+      insertLine = afterLines.length;
+      for (let j = 0; j < afterLines.length; j++) {
+        const m = afterLines[j].match(/^## (.+)$/);
+        if (m && m[1].trim() === pinnedName) {
+          insertLine = j;
+          while (insertLine > 0 && afterLines[insertLine - 1].trim() === "") insertLine--;
+          if (insertLine > 0 && afterLines[insertLine - 1].match(/^---+$/)) insertLine--;
+          while (insertLine > 0 && afterLines[insertLine - 1].trim() === "") insertLine--;
+          break;
+        }
+      }
+    } else {
+      insertLine = remainingBlocks[toIndex].startLine;
+    }
+
+    // Trim trailing blank lines from group
+    while (groupLines.length > 0 && groupLines[groupLines.length - 1].trim() === "") {
+      groupLines.pop();
+    }
+
+    const before = lines.slice(0, insertLine);
+    const after = lines.slice(insertLine);
+
+    while (before.length > 0 && before[before.length - 1].trim() === "") before.pop();
+    while (after.length > 0 && after[0].trim() === "") after.shift();
+
+    const parts: string[] = [];
+    if (before.length > 0) parts.push(before.join("\n"));
+    parts.push(groupLines.join("\n"));
+    if (after.length > 0) parts.push(after.join("\n"));
+
+    const newContent = parts.join("\n\n") + "\n";
     await this.setFileContent(projectFile, newContent);
   }
 
@@ -1378,6 +1495,8 @@ From the source preview, you have four options:
 class AssemblerView extends ItemView {
   plugin: NoteAssemblerPlugin;
   private draggedIndex: number | null = null;
+  private draggedGroupIndices: number[] | null = null;
+  private collapsedHeadings: Set<string> = new Set();
   previewSourceIndex: number | null = null;
   activeTab: "sources" | "outline" = "sources";
 
@@ -1925,7 +2044,6 @@ class AssemblerView extends ItemView {
     // Read content and parse blocks
     const content = await this.plugin.getFileContent(projectFile);
     const blocks = this.plugin.parseBlocks(content);
-    const contentLines = content.split("\n");
 
     if (blocks.length === 0) {
       section.createDiv({
@@ -1934,154 +2052,32 @@ class AssemblerView extends ItemView {
       });
     } else {
       const list = section.createDiv({ cls: "na-note-list" });
+      const { orphans, groups } = this.plugin.groupBlocks(blocks);
 
-      blocks.forEach((blk, index) => {
-        const isHeading = blk.type === "heading";
-        const isBlockquote = blk.type === "blockquote";
+      // Render orphan blocks (before first heading)
+      for (const idx of orphans) {
+        this.renderBlockCard(list, blocks[idx], idx, blocks, project, content);
+      }
 
-        const cardCls = isHeading
-          ? "na-note-card na-block-heading"
-          : isBlockquote
-            ? "na-note-card na-block-quote"
-            : "na-note-card na-block-prose";
+      // Render heading groups
+      for (const group of groups) {
+        const headingText = group.heading.headingText || "";
+        const isCollapsed = this.collapsedHeadings.has(headingText);
+        const allGroupIndices = [group.headingIndex, ...group.childIndices];
 
-        const card = list.createDiv({ cls: cardCls });
-        card.setAttribute("draggable", "true");
-        card.dataset.index = String(index);
+        this.renderHeadingGroupCard(
+          list, group, blocks, project, content, isCollapsed, allGroupIndices
+        );
 
-        // Grip handle
-        const grip = card.createSpan({ cls: "na-grip" });
-        setIcon(grip, "grip-vertical");
-
-        // Block preview
-        if (isHeading) {
-          const title = card.createSpan({
-            cls: "na-note-title na-block-heading-text",
-            text: blk.headingText || "",
-          });
-          title.addEventListener("click", () => {
-            this.scrollToBlock(project, blk);
-          });
-        } else if (isBlockquote) {
-          const previewEl = card.createSpan({ cls: "na-note-title na-block-quote-text" });
-          previewEl.createSpan({ cls: "na-block-quote-icon", text: "\u201C" });
-          previewEl.appendText(blk.preview);
-          if (blk.source) {
-            previewEl.createSpan({
-              cls: "na-block-source",
-              text: `  \u2014${blk.source}`,
-            });
+        // Render children if expanded
+        if (!isCollapsed) {
+          for (const childIdx of group.childIndices) {
+            this.renderBlockCard(
+              list, blocks[childIdx], childIdx, blocks, project, content, true
+            );
           }
-          previewEl.addEventListener("click", () => {
-            this.scrollToBlock(project, blk);
-          });
-        } else {
-          const title = card.createSpan({
-            cls: "na-note-title na-block-prose-text",
-            text: blk.preview,
-          });
-          title.addEventListener("click", () => {
-            this.scrollToBlock(project, blk);
-          });
         }
-
-        // Move buttons
-        const moveGroup = card.createSpan({ cls: "na-move-group" });
-        const upBtn = moveGroup.createSpan({ cls: "na-move" });
-        setIcon(upBtn, "chevron-up");
-        upBtn.setAttribute("title", "Move up");
-        if (index === 0) upBtn.addClass("na-move-disabled");
-        upBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          if (index > 0) await this.plugin.moveBlock(project, index, index - 1);
-        });
-        const downBtn = moveGroup.createSpan({ cls: "na-move" });
-        setIcon(downBtn, "chevron-down");
-        downBtn.setAttribute("title", "Move down");
-        if (index === blocks.length - 1) downBtn.addClass("na-move-disabled");
-        downBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          if (index < blocks.length - 1) await this.plugin.moveBlock(project, index, index + 1);
-        });
-
-        // Extract button — heading blocks only
-        if (isHeading) {
-          const extractBtn = card.createSpan({ cls: "na-extract" });
-          setIcon(extractBtn, "arrow-up-right");
-          extractBtn.setAttribute("title", "Extract section to standalone note");
-          extractBtn.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            const allSections = this.plugin.parseSections(content);
-            const draggable = allSections.filter((s) => !s.pinned);
-            const sectionIdx = draggable.findIndex((s) => s.startLine === blk.startLine);
-            if (sectionIdx >= 0) {
-              await this.plugin.extractSection(project, sectionIdx);
-            }
-          });
-        }
-
-        // Remove button (all blocks)
-        const removeBtn = card.createSpan({ cls: "na-remove" });
-        setIcon(removeBtn, "x");
-        removeBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await this.plugin.removeBlock(project, index);
-        });
-
-        // ── Drag events ──
-        card.addEventListener("dragstart", (e) => {
-          this.draggedIndex = index;
-          card.addClass("na-dragging");
-          if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = "move";
-          }
-        });
-
-        card.addEventListener("dragend", () => {
-          this.draggedIndex = null;
-          card.removeClass("na-dragging");
-          list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
-            el.removeClass("na-drop-above");
-            el.removeClass("na-drop-below");
-          });
-        });
-
-        card.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          if (this.draggedIndex === null || this.draggedIndex === index) return;
-          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-          const rect = card.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
-            el.removeClass("na-drop-above");
-            el.removeClass("na-drop-below");
-          });
-          if (e.clientY < midY) {
-            card.addClass("na-drop-above");
-          } else {
-            card.addClass("na-drop-below");
-          }
-        });
-
-        card.addEventListener("dragleave", () => {
-          card.removeClass("na-drop-above");
-          card.removeClass("na-drop-below");
-        });
-
-        card.addEventListener("drop", async (e) => {
-          e.preventDefault();
-          if (this.draggedIndex === null || this.draggedIndex === index) return;
-          const rect = card.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          const insertBefore = e.clientY < midY;
-          const fromIdx = this.draggedIndex;
-          let toIdx = index;
-          if (fromIdx < index) toIdx--;
-          if (!insertBefore) toIdx++;
-          this.draggedIndex = null;
-          await this.plugin.moveBlock(project, fromIdx, toIdx);
-        });
-      });
+      }
 
       // Pinned sections (Sources)
       const allSections = this.plugin.parseSections(content);
@@ -2158,6 +2154,339 @@ class AssemblerView extends ItemView {
         });
       }
     }
+  }
+
+  // ── Render a single block card (orphan or child) ──
+
+  private renderBlockCard(
+    list: HTMLElement,
+    blk: ContentBlock,
+    index: number,
+    blocks: ContentBlock[],
+    project: Project,
+    content: string,
+    isChild: boolean = false,
+  ) {
+    const isHeading = blk.type === "heading";
+    const isBlockquote = blk.type === "blockquote";
+
+    let cardCls = isHeading
+      ? "na-note-card na-block-heading"
+      : isBlockquote
+        ? "na-note-card na-block-quote"
+        : "na-note-card na-block-prose";
+    if (isChild) cardCls += " na-group-child";
+
+    const card = list.createDiv({ cls: cardCls });
+    card.setAttribute("draggable", "true");
+    card.dataset.index = String(index);
+
+    // Grip handle
+    const grip = card.createSpan({ cls: "na-grip" });
+    setIcon(grip, "grip-vertical");
+
+    // Block preview
+    if (isHeading) {
+      const title = card.createSpan({
+        cls: "na-note-title na-block-heading-text",
+        text: blk.headingText || "",
+      });
+      title.addEventListener("click", () => {
+        this.scrollToBlock(project, blk);
+      });
+    } else if (isBlockquote) {
+      const previewEl = card.createSpan({ cls: "na-note-title na-block-quote-text" });
+      previewEl.createSpan({ cls: "na-block-quote-icon", text: "\u201C" });
+      previewEl.appendText(blk.preview);
+      if (blk.source) {
+        previewEl.createSpan({
+          cls: "na-block-source",
+          text: `  \u2014${blk.source}`,
+        });
+      }
+      previewEl.addEventListener("click", () => {
+        this.scrollToBlock(project, blk);
+      });
+    } else {
+      const title = card.createSpan({
+        cls: "na-note-title na-block-prose-text",
+        text: blk.preview,
+      });
+      title.addEventListener("click", () => {
+        this.scrollToBlock(project, blk);
+      });
+    }
+
+    // Move buttons
+    const moveGroup = card.createSpan({ cls: "na-move-group" });
+    const upBtn = moveGroup.createSpan({ cls: "na-move" });
+    setIcon(upBtn, "chevron-up");
+    upBtn.setAttribute("title", "Move up");
+    if (index === 0) upBtn.addClass("na-move-disabled");
+    upBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (index > 0) await this.plugin.moveBlock(project, index, index - 1);
+    });
+    const downBtn = moveGroup.createSpan({ cls: "na-move" });
+    setIcon(downBtn, "chevron-down");
+    downBtn.setAttribute("title", "Move down");
+    if (index === blocks.length - 1) downBtn.addClass("na-move-disabled");
+    downBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (index < blocks.length - 1) await this.plugin.moveBlock(project, index, index + 1);
+    });
+
+    // Extract button — heading blocks only
+    if (isHeading) {
+      const extractBtn = card.createSpan({ cls: "na-extract" });
+      setIcon(extractBtn, "arrow-up-right");
+      extractBtn.setAttribute("title", "Extract section to standalone note");
+      extractBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const allSections = this.plugin.parseSections(content);
+        const draggable = allSections.filter((s) => !s.pinned);
+        const sectionIdx = draggable.findIndex((s) => s.startLine === blk.startLine);
+        if (sectionIdx >= 0) {
+          await this.plugin.extractSection(project, sectionIdx);
+        }
+      });
+    }
+
+    // Remove button (all blocks)
+    const removeBtn = card.createSpan({ cls: "na-remove" });
+    setIcon(removeBtn, "x");
+    removeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.plugin.removeBlock(project, index);
+    });
+
+    // ── Drag events ──
+    card.addEventListener("dragstart", (e) => {
+      this.draggedIndex = index;
+      this.draggedGroupIndices = null;
+      card.addClass("na-dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+      }
+    });
+
+    card.addEventListener("dragend", () => {
+      this.draggedIndex = null;
+      this.draggedGroupIndices = null;
+      card.removeClass("na-dragging");
+      list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
+        el.removeClass("na-drop-above");
+        el.removeClass("na-drop-below");
+      });
+    });
+
+    this.addDropHandlers(card, list, index, blocks, project);
+  }
+
+  // ── Render a heading group card (with collapse chevron) ──
+
+  private renderHeadingGroupCard(
+    list: HTMLElement,
+    group: HeadingGroup,
+    blocks: ContentBlock[],
+    project: Project,
+    content: string,
+    isCollapsed: boolean,
+    allGroupIndices: number[],
+  ) {
+    const blk = group.heading;
+    const index = group.headingIndex;
+    const headingText = blk.headingText || "";
+
+    let cardCls = "na-note-card na-block-heading";
+    if (isCollapsed) cardCls += " na-group-collapsed";
+
+    const card = list.createDiv({ cls: cardCls });
+    card.setAttribute("draggable", "true");
+    card.dataset.index = String(index);
+
+    // Collapse chevron
+    const chevron = card.createSpan({ cls: "na-collapse-chevron clickable-icon" });
+    setIcon(chevron, isCollapsed ? "chevron-right" : "chevron-down");
+    chevron.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.collapsedHeadings.has(headingText)) {
+        this.collapsedHeadings.delete(headingText);
+      } else {
+        this.collapsedHeadings.add(headingText);
+      }
+      this.renderContent();
+    });
+
+    // Grip handle
+    const grip = card.createSpan({ cls: "na-grip" });
+    setIcon(grip, "grip-vertical");
+
+    // Heading text
+    const title = card.createSpan({
+      cls: "na-note-title na-block-heading-text",
+      text: headingText,
+    });
+    title.addEventListener("click", () => {
+      this.scrollToBlock(project, blk);
+    });
+
+    // Count badge when collapsed
+    if (isCollapsed && group.children.length > 0) {
+      card.createSpan({
+        cls: "na-group-count",
+        text: String(group.children.length),
+      });
+    }
+
+    // Move buttons — group-aware when collapsed
+    const moveGroupEl = card.createSpan({ cls: "na-move-group" });
+    const upBtn = moveGroupEl.createSpan({ cls: "na-move" });
+    setIcon(upBtn, "chevron-up");
+    upBtn.setAttribute("title", isCollapsed ? "Move group up" : "Move up");
+    if (index === 0) upBtn.addClass("na-move-disabled");
+    upBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (index === 0) return;
+      if (isCollapsed && allGroupIndices.length > 1) {
+        // Move entire group: target is the block index before the heading
+        await this.plugin.moveBlockGroup(project, allGroupIndices, index - 1);
+      } else {
+        await this.plugin.moveBlock(project, index, index - 1);
+      }
+    });
+    const downBtn = moveGroupEl.createSpan({ cls: "na-move" });
+    setIcon(downBtn, "chevron-down");
+    downBtn.setAttribute("title", isCollapsed ? "Move group down" : "Move down");
+    const lastIdx = allGroupIndices[allGroupIndices.length - 1];
+    if (lastIdx === blocks.length - 1) downBtn.addClass("na-move-disabled");
+    downBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (lastIdx >= blocks.length - 1) return;
+      if (isCollapsed && allGroupIndices.length > 1) {
+        // Move entire group down: target is block after the last child
+        await this.plugin.moveBlockGroup(project, allGroupIndices, lastIdx + 1);
+      } else {
+        if (index < blocks.length - 1) {
+          await this.plugin.moveBlock(project, index, index + 1);
+        }
+      }
+    });
+
+    // Extract button
+    const extractBtn = card.createSpan({ cls: "na-extract" });
+    setIcon(extractBtn, "arrow-up-right");
+    extractBtn.setAttribute("title", "Extract section to standalone note");
+    extractBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const allSections = this.plugin.parseSections(content);
+      const draggable = allSections.filter((s) => !s.pinned);
+      const sectionIdx = draggable.findIndex((s) => s.startLine === blk.startLine);
+      if (sectionIdx >= 0) {
+        await this.plugin.extractSection(project, sectionIdx);
+      }
+    });
+
+    // Remove button
+    const removeBtn = card.createSpan({ cls: "na-remove" });
+    setIcon(removeBtn, "x");
+    removeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.plugin.removeBlock(project, index);
+    });
+
+    // ── Drag events (group-aware when collapsed) ──
+    card.addEventListener("dragstart", (e) => {
+      if (isCollapsed) {
+        this.draggedGroupIndices = allGroupIndices;
+        this.draggedIndex = null;
+      } else {
+        this.draggedIndex = index;
+        this.draggedGroupIndices = null;
+      }
+      card.addClass("na-dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+      }
+    });
+
+    card.addEventListener("dragend", () => {
+      this.draggedIndex = null;
+      this.draggedGroupIndices = null;
+      card.removeClass("na-dragging");
+      list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
+        el.removeClass("na-drop-above");
+        el.removeClass("na-drop-below");
+      });
+    });
+
+    this.addDropHandlers(card, list, index, blocks, project);
+  }
+
+  // ── Shared drop handlers for all cards ──
+
+  private addDropHandlers(
+    card: HTMLElement,
+    list: HTMLElement,
+    index: number,
+    blocks: ContentBlock[],
+    project: Project,
+  ) {
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const isDraggingSingle = this.draggedIndex !== null;
+      const isDraggingGroup = this.draggedGroupIndices !== null;
+      if (!isDraggingSingle && !isDraggingGroup) return;
+      if (isDraggingSingle && this.draggedIndex === index) return;
+      if (isDraggingGroup && this.draggedGroupIndices!.includes(index)) return;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      const rect = card.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
+        el.removeClass("na-drop-above");
+        el.removeClass("na-drop-below");
+      });
+      if (e.clientY < midY) {
+        card.addClass("na-drop-above");
+      } else {
+        card.addClass("na-drop-below");
+      }
+    });
+
+    card.addEventListener("dragleave", () => {
+      card.removeClass("na-drop-above");
+      card.removeClass("na-drop-below");
+    });
+
+    card.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const insertBefore = e.clientY < midY;
+
+      if (this.draggedGroupIndices !== null) {
+        // Group drop
+        const fromIndices = this.draggedGroupIndices;
+        if (fromIndices.includes(index)) return;
+        let toIdx = index;
+        const firstFrom = fromIndices[0];
+        if (firstFrom < index) toIdx -= fromIndices.length - 1;
+        if (!insertBefore) toIdx++;
+        this.draggedGroupIndices = null;
+        this.draggedIndex = null;
+        await this.plugin.moveBlockGroup(project, fromIndices, toIdx);
+      } else if (this.draggedIndex !== null) {
+        // Single block drop
+        if (this.draggedIndex === index) return;
+        const fromIdx = this.draggedIndex;
+        let toIdx = index;
+        if (fromIdx < index) toIdx--;
+        if (!insertBefore) toIdx++;
+        this.draggedIndex = null;
+        this.draggedGroupIndices = null;
+        await this.plugin.moveBlock(project, fromIdx, toIdx);
+      }
+    });
   }
 
   private scrollToSection(project: Project, section: Section) {
