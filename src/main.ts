@@ -73,6 +73,15 @@ interface Section {
   pinned: boolean; // true for Sources — can't be dragged
 }
 
+interface ContentBlock {
+  type: "heading" | "blockquote" | "prose";
+  startLine: number;
+  endLine: number; // exclusive
+  preview: string; // truncated first-line text for sidebar
+  source?: string; // for blockquotes: extracted [[Source|*]] name
+  headingText?: string; // for headings: text without ##
+}
+
 // ── Plugin ──────────────────────────────────────────────────
 
 export default class NoteAssemblerPlugin extends Plugin {
@@ -505,6 +514,97 @@ export default class NoteAssemblerPlugin extends Plugin {
     return sections;
   }
 
+  // ── Parse content into blocks (headings, blockquotes, prose) ──
+
+  parseBlocks(content: string): ContentBlock[] {
+    const lines = content.split("\n");
+    const blocks: ContentBlock[] = [];
+    const pinnedName = this.data.settings.pinnedSectionName;
+
+    // Find pinned section start line (stop parsing there)
+    let pinnedStart = lines.length;
+    for (let j = 0; j < lines.length; j++) {
+      const m = lines[j].match(/^## (.+)$/);
+      if (m && m[1].trim() === pinnedName) {
+        pinnedStart = j;
+        break;
+      }
+    }
+
+    // Back up past --- HR and blank lines before pinned section
+    let effectiveEnd = pinnedStart;
+    if (effectiveEnd > 0 && lines[effectiveEnd - 1].trim() === "") effectiveEnd--;
+    if (effectiveEnd > 0 && lines[effectiveEnd - 1].match(/^---+$/)) effectiveEnd--;
+    if (effectiveEnd > 0 && lines[effectiveEnd - 1].trim() === "") effectiveEnd--;
+
+    let i = 0;
+    while (i < effectiveEnd) {
+      const line = lines[i];
+
+      // Skip blank lines
+      if (line.trim() === "") { i++; continue; }
+
+      // Skip HR lines
+      if (line.match(/^---+$/)) { i++; continue; }
+
+      // Heading block (single line)
+      const headingMatch = line.match(/^## (.+)$/);
+      if (headingMatch) {
+        blocks.push({
+          type: "heading",
+          startLine: i,
+          endLine: i + 1,
+          preview: headingMatch[1],
+          headingText: headingMatch[1],
+        });
+        i++;
+        continue;
+      }
+
+      // Blockquote block (consecutive > lines)
+      if (line.startsWith("> ") || line === ">") {
+        const start = i;
+        while (i < effectiveEnd && (lines[i].startsWith("> ") || lines[i] === ">")) {
+          i++;
+        }
+        const lastQuoteLine = lines[i - 1];
+        const sourceMatch = lastQuoteLine.match(/\[\[([^\]|]+)\|\*]]/);
+        const firstLine = lines[start].replace(/^>\s*/, "").replace(/^[\u201C"']/, "");
+        blocks.push({
+          type: "blockquote",
+          startLine: start,
+          endLine: i,
+          preview: truncate(firstLine, 50),
+          source: sourceMatch ? sourceMatch[1] : undefined,
+        });
+        continue;
+      }
+
+      // Prose block (consecutive non-blank, non-heading, non-blockquote, non-HR lines)
+      {
+        const start = i;
+        while (
+          i < effectiveEnd &&
+          lines[i].trim() !== "" &&
+          !lines[i].match(/^## .+$/) &&
+          !lines[i].startsWith("> ") &&
+          lines[i] !== ">" &&
+          !lines[i].match(/^---+$/)
+        ) {
+          i++;
+        }
+        blocks.push({
+          type: "prose",
+          startLine: start,
+          endLine: i,
+          preview: truncate(lines[start], 50),
+        });
+      }
+    }
+
+    return blocks;
+  }
+
   // ── Get file content from editor buffer if open, else disk ──
 
   async getFileContent(file: TFile): Promise<string> {
@@ -742,6 +842,91 @@ export default class NoteAssemblerPlugin extends Plugin {
     await this.setFileContent(projectFile, newContent);
   }
 
+  // ── Reorder: move a block to a new position ──
+
+  async moveBlock(project: Project, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+
+    const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
+    if (!(projectFile instanceof TFile)) return;
+
+    const content = await this.getFileContent(projectFile);
+    const blocks = this.parseBlocks(content);
+    if (fromIndex >= blocks.length || toIndex >= blocks.length) return;
+
+    const lines = content.split("\n");
+    const block = blocks[fromIndex];
+    const blockLines = lines.slice(block.startLine, block.endLine);
+
+    // Remove block from original position
+    lines.splice(block.startLine, block.endLine - block.startLine);
+
+    // Re-parse to find insertion point after removal
+    const afterRemoval = lines.join("\n");
+    const remainingBlocks = this.parseBlocks(afterRemoval);
+
+    let insertLine: number;
+    if (toIndex >= remainingBlocks.length) {
+      // Insert at end (before pinned section)
+      const pinnedName = this.data.settings.pinnedSectionName;
+      const afterLines = afterRemoval.split("\n");
+      insertLine = afterLines.length;
+      for (let j = 0; j < afterLines.length; j++) {
+        const m = afterLines[j].match(/^## (.+)$/);
+        if (m && m[1].trim() === pinnedName) {
+          insertLine = j;
+          while (insertLine > 0 && afterLines[insertLine - 1].trim() === "") insertLine--;
+          if (insertLine > 0 && afterLines[insertLine - 1].match(/^---+$/)) insertLine--;
+          while (insertLine > 0 && afterLines[insertLine - 1].trim() === "") insertLine--;
+          break;
+        }
+      }
+    } else {
+      insertLine = remainingBlocks[toIndex].startLine;
+    }
+
+    // Trim trailing blank lines from block
+    while (blockLines.length > 0 && blockLines[blockLines.length - 1].trim() === "") {
+      blockLines.pop();
+    }
+
+    const before = lines.slice(0, insertLine);
+    const after = lines.slice(insertLine);
+
+    while (before.length > 0 && before[before.length - 1].trim() === "") before.pop();
+    while (after.length > 0 && after[0].trim() === "") after.shift();
+
+    const parts: string[] = [];
+    if (before.length > 0) parts.push(before.join("\n"));
+    parts.push(blockLines.join("\n"));
+    if (after.length > 0) parts.push(after.join("\n"));
+
+    const newContent = parts.join("\n\n") + "\n";
+    await this.setFileContent(projectFile, newContent);
+  }
+
+  // ── Remove a block ──
+
+  async removeBlock(project: Project, blockIndex: number) {
+    const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
+    if (!(projectFile instanceof TFile)) return;
+
+    const content = await this.getFileContent(projectFile);
+    const blocks = this.parseBlocks(content);
+    if (blockIndex >= blocks.length) return;
+
+    const block = blocks[blockIndex];
+    const lines = content.split("\n");
+    lines.splice(block.startLine, block.endLine - block.startLine);
+
+    const newContent =
+      lines
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trimEnd() + "\n";
+    await this.setFileContent(projectFile, newContent);
+  }
+
   // ── Extract a section back to a standalone note ──
 
   async extractSection(project: Project, sectionIndex: number) {
@@ -848,16 +1033,6 @@ export default class NoteAssemblerPlugin extends Plugin {
       .split(/\s+/)
       .filter((w) => w.length > 0).length;
     new Notice(`Copied to clipboard (${wordCount} words)`);
-
-    setTimeout(() => {
-      if (
-        confirm(
-          `Essay exported. Untrack "${project.name}"? The file stays in your vault.`
-        )
-      ) {
-        this.untrackProject(project.id);
-      }
-    }, 300);
   }
 
   async untrackProject(projectId: string) {
@@ -1234,53 +1409,60 @@ class AssemblerView extends ItemView {
     container.empty();
     container.addClass("note-assembler");
 
-    // ── Header: project selector + buttons ──
+    const project = this.plugin.getActiveProject();
+
+    // ── No active project: clean landing with two buttons ──
+    if (!project) {
+      const landing = container.createDiv({ cls: "na-landing" });
+
+      const newBtn = landing.createEl("button", {
+        cls: "na-btn na-btn-primary na-landing-btn",
+        text: "New Essay",
+      });
+      newBtn.addEventListener("click", () => {
+        this.openNewProjectModal();
+      });
+
+      const trackBtn = landing.createEl("button", {
+        cls: "na-btn na-landing-btn",
+        text: "Track Existing Note",
+      });
+      trackBtn.addEventListener("click", () => {
+        this.openExistingProjectPicker();
+      });
+
+      // Show existing projects as a list below
+      const projects = this.plugin.data.projects;
+      if (projects.length > 0) {
+        const listDiv = landing.createDiv({ cls: "na-landing-list" });
+        listDiv.createDiv({ cls: "na-landing-list-label", text: "Recent essays" });
+        for (const p of projects) {
+          const row = listDiv.createDiv({ cls: "na-landing-item" });
+          row.createSpan({ cls: "na-landing-item-name", text: p.name });
+          row.addEventListener("click", async () => {
+            this.plugin.data.activeProjectId = p.id;
+            await this.plugin.savePluginData();
+            this.plugin.updateProjectFileClass();
+            this.renderContent();
+          });
+        }
+      }
+      return;
+    }
+
+    // ── Active project: header + tabs + content + footer ──
     const header = container.createDiv({ cls: "na-header" });
 
-    // "Create New Essay" text link at top
-    const newEssayBtn = header.createEl("button", {
-      cls: "na-new-essay-link",
-      text: "+ Create New Essay",
-    });
-    newEssayBtn.addEventListener("click", () => {
-      const modal = new NewProjectModal(this.app, async (name) => {
-        modal.close();
-        await sleep(100);
-        const filePath = `${name}.md`;
-        const existing = this.app.vault.getAbstractFileByPath(filePath);
-        if (!existing) {
-          await this.app.vault.create(filePath, "");
-        }
-        const project: Project = {
-          id: generateId(),
-          name,
-          filePath,
-          sourceFolder: "",
-          sources: [],
-        };
-        this.plugin.data.projects.push(project);
-        this.plugin.data.activeProjectId = project.id;
-        await this.plugin.savePluginData();
-        this.renderContent();
-      });
-      modal.open();
-    });
-
-    // Project selector row: [dropdown] [Open Essay] [untrack]
+    // Project selector row: [dropdown] [Open Essay]
     const projectRow = header.createDiv({ cls: "na-project-row" });
 
     const select = projectRow.createEl("select", { cls: "na-project-select" });
     const projects = this.plugin.data.projects;
 
-    if (projects.length === 0) {
-      select.createEl("option", { text: "No projects", value: "" });
-      select.disabled = true;
-    } else {
-      for (const p of projects) {
-        const opt = select.createEl("option", { text: p.name, value: p.id });
-        if (p.id === this.plugin.data.activeProjectId) {
-          opt.selected = true;
-        }
+    for (const p of projects) {
+      const opt = select.createEl("option", { text: p.name, value: p.id });
+      if (p.id === this.plugin.data.activeProjectId) {
+        opt.selected = true;
       }
     }
 
@@ -1297,9 +1479,7 @@ class AssemblerView extends ItemView {
       text: "Open Essay",
     });
     openBtn.addEventListener("click", async () => {
-      const proj = this.plugin.getActiveProject();
-      if (!proj) return;
-      const pFile = this.app.vault.getAbstractFileByPath(proj.filePath);
+      const pFile = this.app.vault.getAbstractFileByPath(project.filePath);
       if (!(pFile instanceof TFile)) return;
       const openLeaves = this.app.workspace.getLeavesOfType("markdown");
       const existing = openLeaves.find((leaf) => {
@@ -1313,51 +1493,6 @@ class AssemblerView extends ItemView {
         await leaf.openFile(pFile);
       }
     });
-
-    const untrackBtn = projectRow.createEl("button", {
-      cls: "na-btn na-btn-icon na-btn-danger",
-      attr: { "aria-label": "Untrack project" },
-    });
-    setIcon(untrackBtn, "unlink");
-    untrackBtn.addEventListener("click", async () => {
-      const project = this.plugin.getActiveProject();
-      if (!project) return;
-      if (
-        !confirm(
-          `Untrack "${project.name}"? Your essay note stays in your vault — Cairn just stops managing it.`
-        )
-      )
-        return;
-      this.plugin.untrackProject(project.id);
-    });
-
-    const project = this.plugin.getActiveProject();
-
-    // ── Empty state ──
-    if (!project) {
-      const emptyDiv = container.createDiv({ cls: "na-empty" });
-      emptyDiv.createSpan({
-        text: 'Create a project with "+" to get started.',
-      });
-      if (this.plugin.data.projects.length === 0) {
-        emptyDiv.createEl("br");
-        emptyDiv.createEl("br");
-        const sampleBtn = emptyDiv.createEl("button", {
-          cls: "na-btn na-btn-primary",
-          text: "Try the sample project",
-        });
-        sampleBtn.addEventListener("click", () => {
-          this.plugin.createSampleProject();
-        });
-        emptyDiv.createEl("br");
-        emptyDiv.createEl("br");
-        emptyDiv.createSpan({
-          cls: "na-empty-hint",
-          text: "A guided tour of Cairn's features, built as a real project.",
-        });
-      }
-      return;
-    }
 
     const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
     if (!(projectFile instanceof TFile)) {
@@ -1397,6 +1532,75 @@ class AssemblerView extends ItemView {
     } else {
       await this.renderOutlineSection(container, project, projectFile);
     }
+
+    // ── Footer: Finish Essay + New Essay ──
+    const footer = container.createDiv({ cls: "na-footer" });
+
+    const finishBtn = footer.createEl("button", {
+      cls: "na-btn na-footer-btn na-footer-finish",
+      text: "Finish Essay",
+    });
+    finishBtn.addEventListener("click", async () => {
+      const confirmed = await confirmModal(
+        this.app,
+        "Finish Essay",
+        `Remove "${project.name}" from Cairn? Your essay note stays in your vault \u2014 Cairn just stops managing it.`
+      );
+      if (confirmed) {
+        this.plugin.untrackProject(project.id);
+      }
+    });
+
+    const newBtn = footer.createEl("button", {
+      cls: "na-btn na-footer-btn na-footer-new",
+      text: "New Essay",
+    });
+    newBtn.addEventListener("click", () => {
+      this.openNewProjectModal();
+    });
+  }
+
+  private openNewProjectModal() {
+    const modal = new NewProjectModal(this.app, async (name) => {
+      modal.close();
+      await sleep(100);
+      const filePath = `${name}.md`;
+      const existing = this.app.vault.getAbstractFileByPath(filePath);
+      if (!existing) {
+        await this.app.vault.create(filePath, "");
+      }
+      const project: Project = {
+        id: generateId(),
+        name,
+        filePath,
+        sourceFolder: "",
+        sources: [],
+      };
+      this.plugin.data.projects.push(project);
+      this.plugin.data.activeProjectId = project.id;
+      this.plugin.savePluginData();
+      this.renderContent();
+    });
+    modal.open();
+  }
+
+  private openExistingProjectPicker() {
+    const modal = new TrackFileModal(this.app, async (file) => {
+      modal.close();
+      const project: Project = {
+        id: generateId(),
+        name: file.basename,
+        filePath: file.path,
+        sourceFolder: "",
+        sources: [],
+      };
+      this.plugin.data.projects.push(project);
+      this.plugin.data.activeProjectId = project.id;
+      await this.plugin.savePluginData();
+      this.plugin.updateProjectFileClass();
+      this.renderContent();
+    });
+    modal.open();
   }
 
   // ── Heading toggle (shared by Sources + Outline) ──
@@ -1411,7 +1615,7 @@ class AssemblerView extends ItemView {
       this.plugin.data.settings.hideHeadings = !this.plugin.data.settings.hideHeadings;
       this.plugin.savePluginData();
       this.plugin.updateProjectFileClass();
-      this.renderView();
+      this.renderContent();
     });
   }
 
@@ -1718,68 +1922,68 @@ class AssemblerView extends ItemView {
       this.plugin.copyCleanExport(project);
     });
 
-    // Read content and parse sections
+    // Read content and parse blocks
     const content = await this.plugin.getFileContent(projectFile);
-    const allSections = this.plugin.parseSections(content);
-    const draggable = allSections.filter((s) => !s.pinned);
-    const pinned = allSections.filter((s) => s.pinned);
+    const blocks = this.plugin.parseBlocks(content);
+    const contentLines = content.split("\n");
 
-    if (draggable.length === 0 && pinned.length === 0) {
+    if (blocks.length === 0) {
       section.createDiv({
         cls: "na-empty na-outline-empty",
-        text: "No sections yet. Add sources and pull content in, or add a blank section.",
+        text: "No content yet. Add sources and pull content in, or add a blank section.",
       });
     } else {
-      // Word count
-      const contentLines = content.split("\n");
-      let essayText = "";
-      for (const sec of draggable) {
-        essayText +=
-          contentLines.slice(sec.startLine + 1, sec.endLine).join(" ") + " ";
-      }
-      const wordCount = essayText
-        .trim()
-        .split(/\s+/)
-        .filter((w) => w.length > 0).length;
-      section.createDiv({
-        cls: "na-word-count",
-        text: `${wordCount} words`,
-      });
-
       const list = section.createDiv({ cls: "na-note-list" });
 
-      draggable.forEach((sec, index) => {
-        const card = list.createDiv({ cls: "na-note-card" });
+      blocks.forEach((blk, index) => {
+        const isHeading = blk.type === "heading";
+        const isBlockquote = blk.type === "blockquote";
+
+        const cardCls = isHeading
+          ? "na-note-card na-block-heading"
+          : isBlockquote
+            ? "na-note-card na-block-quote"
+            : "na-note-card na-block-prose";
+
+        const card = list.createDiv({ cls: cardCls });
         card.setAttribute("draggable", "true");
         card.dataset.index = String(index);
 
+        // Grip handle
         const grip = card.createSpan({ cls: "na-grip" });
         setIcon(grip, "grip-vertical");
 
-        card.createSpan({ cls: "na-note-num", text: `${index + 1}.` });
-
-        const title = card.createSpan({
-          cls: "na-note-title",
-          text: sec.heading,
-        });
-        title.setAttribute("title", sec.heading);
-
-        // Per-section word count
-        const sectionText = contentLines
-          .slice(sec.startLine + 1, sec.endLine)
-          .join(" ")
-          .trim();
-        const sectionWords = sectionText
-          .split(/\s+/)
-          .filter((w) => w.length > 0).length;
-        card.createSpan({
-          cls: "na-section-wc",
-          text: `${sectionWords}`,
-        });
-
-        title.addEventListener("click", () => {
-          this.scrollToSection(project, sec);
-        });
+        // Block preview
+        if (isHeading) {
+          const title = card.createSpan({
+            cls: "na-note-title na-block-heading-text",
+            text: blk.headingText || "",
+          });
+          title.addEventListener("click", () => {
+            this.scrollToBlock(project, blk);
+          });
+        } else if (isBlockquote) {
+          const previewEl = card.createSpan({ cls: "na-note-title na-block-quote-text" });
+          previewEl.createSpan({ cls: "na-block-quote-icon", text: "\u201C" });
+          previewEl.appendText(blk.preview);
+          if (blk.source) {
+            previewEl.createSpan({
+              cls: "na-block-source",
+              text: `  \u2014${blk.source}`,
+            });
+          }
+          previewEl.addEventListener("click", () => {
+            this.scrollToBlock(project, blk);
+          });
+        } else {
+          const title = card.createSpan({
+            cls: "na-note-title na-block-prose-text",
+            text: blk.preview,
+          });
+          title.addEventListener("click", () => {
+            this.scrollToBlock(project, blk);
+          });
+        }
 
         // Move buttons
         const moveGroup = card.createSpan({ cls: "na-move-group" });
@@ -1789,35 +1993,39 @@ class AssemblerView extends ItemView {
         if (index === 0) upBtn.addClass("na-move-disabled");
         upBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          if (index > 0)
-            await this.plugin.moveSection(project, index, index - 1);
+          if (index > 0) await this.plugin.moveBlock(project, index, index - 1);
         });
         const downBtn = moveGroup.createSpan({ cls: "na-move" });
         setIcon(downBtn, "chevron-down");
         downBtn.setAttribute("title", "Move down");
-        if (index === draggable.length - 1)
-          downBtn.addClass("na-move-disabled");
+        if (index === blocks.length - 1) downBtn.addClass("na-move-disabled");
         downBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          if (index < draggable.length - 1)
-            await this.plugin.moveSection(project, index, index + 1);
+          if (index < blocks.length - 1) await this.plugin.moveBlock(project, index, index + 1);
         });
 
-        // Extract button
-        const extractBtn = card.createSpan({ cls: "na-extract" });
-        setIcon(extractBtn, "arrow-up-right");
-        extractBtn.setAttribute("title", "Extract to standalone note");
-        extractBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await this.plugin.extractSection(project, index);
-        });
+        // Extract button — heading blocks only
+        if (isHeading) {
+          const extractBtn = card.createSpan({ cls: "na-extract" });
+          setIcon(extractBtn, "arrow-up-right");
+          extractBtn.setAttribute("title", "Extract section to standalone note");
+          extractBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const allSections = this.plugin.parseSections(content);
+            const draggable = allSections.filter((s) => !s.pinned);
+            const sectionIdx = draggable.findIndex((s) => s.startLine === blk.startLine);
+            if (sectionIdx >= 0) {
+              await this.plugin.extractSection(project, sectionIdx);
+            }
+          });
+        }
 
-        // Remove button
+        // Remove button (all blocks)
         const removeBtn = card.createSpan({ cls: "na-remove" });
         setIcon(removeBtn, "x");
         removeBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          await this.plugin.removeSection(project, index);
+          await this.plugin.removeBlock(project, index);
         });
 
         // ── Drag events ──
@@ -1832,28 +2040,22 @@ class AssemblerView extends ItemView {
         card.addEventListener("dragend", () => {
           this.draggedIndex = null;
           card.removeClass("na-dragging");
-          list
-            .querySelectorAll(".na-drop-above, .na-drop-below")
-            .forEach((el) => {
-              el.removeClass("na-drop-above");
-              el.removeClass("na-drop-below");
-            });
+          list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
+            el.removeClass("na-drop-above");
+            el.removeClass("na-drop-below");
+          });
         });
 
         card.addEventListener("dragover", (e) => {
           e.preventDefault();
           if (this.draggedIndex === null || this.draggedIndex === index) return;
-          if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = "move";
-          }
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
           const rect = card.getBoundingClientRect();
           const midY = rect.top + rect.height / 2;
-          list
-            .querySelectorAll(".na-drop-above, .na-drop-below")
-            .forEach((el) => {
-              el.removeClass("na-drop-above");
-              el.removeClass("na-drop-below");
-            });
+          list.querySelectorAll(".na-drop-above, .na-drop-below").forEach((el) => {
+            el.removeClass("na-drop-above");
+            el.removeClass("na-drop-below");
+          });
           if (e.clientY < midY) {
             card.addClass("na-drop-above");
           } else {
@@ -1869,32 +2071,24 @@ class AssemblerView extends ItemView {
         card.addEventListener("drop", async (e) => {
           e.preventDefault();
           if (this.draggedIndex === null || this.draggedIndex === index) return;
-
           const rect = card.getBoundingClientRect();
           const midY = rect.top + rect.height / 2;
           const insertBefore = e.clientY < midY;
-
-          const fromIndex = this.draggedIndex;
-          let toIndex = index;
-
-          if (fromIndex < index) {
-            toIndex--;
-          }
-          if (!insertBefore) {
-            toIndex++;
-          }
-
+          const fromIdx = this.draggedIndex;
+          let toIdx = index;
+          if (fromIdx < index) toIdx--;
+          if (!insertBefore) toIdx++;
           this.draggedIndex = null;
-          await this.plugin.moveSection(project, fromIndex, toIndex);
+          await this.plugin.moveBlock(project, fromIdx, toIdx);
         });
       });
 
       // Pinned sections (Sources)
+      const allSections = this.plugin.parseSections(content);
+      const pinned = allSections.filter((s) => s.pinned);
       for (const sec of pinned) {
         const card = list.createDiv({ cls: "na-note-card na-pinned" });
-        const pinnedGrip = card.createSpan({
-          cls: "na-grip na-grip-disabled",
-        });
+        const pinnedGrip = card.createSpan({ cls: "na-grip na-grip-disabled" });
         setIcon(pinnedGrip, "grip-vertical");
         card.createSpan({ cls: "na-note-num", text: "" });
         const title = card.createSpan({
@@ -1908,13 +2102,13 @@ class AssemblerView extends ItemView {
     }
 
     // ── Related Notes ──
-    const fileContent = await this.plugin.getFileContent(projectFile);
-    const allSects = this.plugin.parseSections(fileContent);
+    const relatedContent = await this.plugin.getFileContent(projectFile);
+    const allSects = this.plugin.parseSections(relatedContent);
     const draggableSects = allSects.filter((s) => !s.pinned);
-    const lines = fileContent.split("\n");
+    const relatedLines = relatedContent.split("\n");
     const allWikilinks: string[] = [];
     for (const sec of draggableSects) {
-      const sectionContent = lines
+      const sectionContent = relatedLines
         .slice(sec.startLine, sec.endLine)
         .join("\n");
       for (const link of parseWikilinks(sectionContent)) {
@@ -1977,6 +2171,28 @@ class AssemblerView extends ItemView {
             from: { line: section.startLine, ch: 0 },
             to: {
               line: Math.min(section.startLine + 5, section.endLine),
+              ch: 0,
+            },
+          },
+          true
+        );
+        this.app.workspace.revealLeaf(leaf);
+        break;
+      }
+    }
+  }
+
+  private scrollToBlock(project: Project, block: ContentBlock) {
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      const view = leaf.view as any;
+      if (view?.file?.path === project.filePath && view?.editor) {
+        view.editor.setCursor({ line: block.startLine, ch: 0 });
+        view.editor.scrollIntoView(
+          {
+            from: { line: block.startLine, ch: 0 },
+            to: {
+              line: Math.min(block.startLine + 3, block.endLine),
               ch: 0,
             },
           },
@@ -2142,6 +2358,30 @@ class NoteSuggestModal extends FuzzySuggestModal<TFile> {
 
   onChooseItem(item: TFile): void {
     this.onChoose(item);
+  }
+}
+
+// ── Track Existing File Modal ─────────────────────────────
+
+class TrackFileModal extends FuzzySuggestModal<TFile> {
+  onChooseFile: (file: TFile) => void;
+
+  constructor(app: App, onChoose: (file: TFile) => void) {
+    super(app);
+    this.onChooseFile = onChoose;
+    this.setPlaceholder("Search for an existing note to track...");
+  }
+
+  getItems(): TFile[] {
+    return this.app.vault.getMarkdownFiles();
+  }
+
+  getItemText(file: TFile): string {
+    return file.basename;
+  }
+
+  onChooseItem(file: TFile) {
+    this.onChooseFile(file);
   }
 }
 
@@ -2777,6 +3017,33 @@ function generateId(): string {
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.substring(0, max - 1) + "\u2026" : str;
+}
+
+function confirmModal(app: App, title: string, message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const modal = new Modal(app);
+    modal.titleEl.setText(title);
+    modal.contentEl.createEl("p", { text: message });
+
+    const btnRow = modal.contentEl.createDiv({ cls: "na-modal-buttons" });
+
+    const cancelBtn = btnRow.createEl("button", { cls: "na-btn", text: "Cancel" });
+    cancelBtn.addEventListener("click", () => {
+      modal.close();
+      resolve(false);
+    });
+
+    const confirmBtn = btnRow.createEl("button", {
+      cls: "na-btn na-btn-primary",
+      text: "Remove from Cairn",
+    });
+    confirmBtn.addEventListener("click", () => {
+      modal.close();
+      resolve(true);
+    });
+
+    modal.open();
+  });
 }
 
 function escapeRegex(str: string): string {
