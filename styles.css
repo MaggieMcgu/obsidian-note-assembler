@@ -755,22 +755,11 @@ select.na-modal-input {
   margin: 0;
 }
 
-/* ── Editor: structural heading styling (project file only) ── */
+/* ── Hide headings + sources toggle ── */
 
-.cairn-project-file .HyperMD-header-2 {
-  border-left: none !important;
-  padding: 20px 0 6px 0 !important;
-}
-
-.cairn-project-file .HyperMD-header-2 .cm-header-2 {
-  color: var(--text-faint) !important;
-  font-size: var(--font-text-size) !important;
-  font-weight: 500 !important;
-}
-
-/* ── Hide headings toggle ── */
-
-.cairn-hide-headings .HyperMD-header-2 {
+.cairn-hide-headings .HyperMD-header-2,
+.cairn-hide-headings .HyperMD-hr,
+.cairn-hide-headings .HyperMD-list-line {
   display: none !important;
 }
 
