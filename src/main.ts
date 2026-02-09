@@ -28,6 +28,7 @@ interface Project {
   filePath: string;
   sourceFolder: string; // vault-relative folder path, "" = all
   sources: ProjectSource[];
+  lastActiveAt?: number;
 }
 
 interface NoteAssemblerSettings {
@@ -217,6 +218,26 @@ export default class NoteAssemblerPlugin extends Plugin {
         if (this.findProjectForFile(file.path)) return false;
         if (checking) return true;
         this.trackFileAsProject(file);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "stop-tracking",
+      name: "Stop tracking current note in Cairn",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const project = this.findProjectForFile(file.path);
+        if (!project) return false;
+        if (checking) return true;
+        confirmModal(
+          this.app,
+          "Stop tracking",
+          `Stop tracking "${project.name}" in Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
+        ).then((confirmed) => {
+          if (confirmed) this.untrackProject(project.id);
+        });
         return true;
       },
     });
@@ -1611,6 +1632,10 @@ From the source preview, you have four options:
   }
 
   async savePluginData() {
+    if (this.data.activeProjectId) {
+      const active = this.data.projects.find((p) => p.id === this.data.activeProjectId);
+      if (active) active.lastActiveAt = Date.now();
+    }
     await this.saveData(this.data);
   }
 }
@@ -1676,7 +1701,9 @@ class AssemblerView extends ItemView {
       });
 
       // Show existing projects as a list below
-      const projects = this.plugin.data.projects;
+      const projects = [...this.plugin.data.projects].sort(
+        (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
+      );
       if (projects.length > 0) {
         const listDiv = landing.createDiv({ cls: "na-landing-list" });
         listDiv.createDiv({ cls: "na-landing-list-label", text: "Recent essays" });
@@ -1701,7 +1728,9 @@ class AssemblerView extends ItemView {
     const projectRow = header.createDiv({ cls: "na-project-row" });
 
     const select = projectRow.createEl("select", { cls: "na-project-select" });
-    const projects = this.plugin.data.projects;
+    const projects = [...this.plugin.data.projects].sort(
+      (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
+    );
 
     for (const p of projects) {
       const opt = select.createEl("option", { text: p.name, value: p.id });
@@ -1786,24 +1815,6 @@ class AssemblerView extends ItemView {
     } else {
       await this.renderOutlineSection(container, project, projectFile);
     }
-
-    // ── Footer: Finish Essay + New Essay ──
-    const footer = container.createDiv({ cls: "na-footer" });
-
-    const finishBtn = footer.createEl("button", {
-      cls: "na-btn na-footer-btn na-footer-finish",
-      text: "Stop tracking in Cairn",
-    });
-    finishBtn.addEventListener("click", async () => {
-      const confirmed = await confirmModal(
-        this.app,
-        "Stop tracking",
-        `Stop tracking "${project.name}" in Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
-      );
-      if (confirmed) {
-        this.plugin.untrackProject(project.id);
-      }
-    });
 
   }
 
