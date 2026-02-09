@@ -41,6 +41,7 @@ interface NoteAssemblerSettings {
   showProjectsInDistill: boolean;
   hideHeadings: boolean;
   newEssayTemplate: string;
+  essayFolder: string;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -52,6 +53,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   showProjectsInDistill: true,
   hideHeadings: false,
   newEssayTemplate: "",
+  essayFolder: "Cairn Essays",
 };
 
 interface NoteAssemblerData {
@@ -1879,9 +1881,14 @@ class AssemblerView extends ItemView {
     const modal = new NewProjectModal(this.app, async (name) => {
       modal.close();
       await sleep(100);
-      const filePath = `${name}.md`;
+      const folder = this.plugin.data.settings.essayFolder;
+      const filePath = folder ? `${folder}/${name}.md` : `${name}.md`;
       const existing = this.app.vault.getAbstractFileByPath(filePath);
       if (!existing) {
+        // Ensure folder exists
+        if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+          await this.app.vault.createFolder(folder);
+        }
         let content = "";
         const tplPath = this.plugin.data.settings.newEssayTemplate;
         if (tplPath) {
@@ -3288,6 +3295,34 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     containerEl.createEl("h2", { text: "Cairn — Essay Composer" });
+
+    new Setting(containerEl)
+      .setName("Essay folder")
+      .setDesc("Where new essays are created. Leave blank for vault root.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "Vault root");
+        const folders: string[] = [];
+        this.app.vault.getAllLoadedFiles().forEach((f) => {
+          if (f.children !== undefined && f.path !== "/") {
+            folders.push(f.path);
+          }
+        });
+        folders.sort();
+        for (const folder of folders) {
+          dropdown.addOption(folder, folder);
+        }
+        // Add current value if it doesn't exist yet (folder not created)
+        const current = this.plugin.data.settings.essayFolder;
+        if (current && !folders.includes(current)) {
+          dropdown.addOption(current, `${current} (will be created)`);
+        }
+        dropdown
+          .setValue(current)
+          .onChange(async (value) => {
+            this.plugin.data.settings.essayFolder = value;
+            await this.plugin.savePluginData();
+          });
+      });
 
     new Setting(containerEl)
       .setName("Pinned section name")
