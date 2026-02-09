@@ -1789,16 +1789,6 @@ class AssemblerView extends ItemView {
       }
     });
 
-    // New Essay row — separate from the open/switch controls
-    const newEssayRow = header.createDiv({ cls: "na-new-essay-row" });
-    const newBtn = newEssayRow.createEl("button", {
-      cls: "na-new-essay-link",
-      text: "+ New Essay",
-    });
-    newBtn.addEventListener("click", () => {
-      this.openNewProjectModal();
-    });
-
     const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
     if (!(projectFile instanceof TFile)) {
       container.createDiv({
@@ -1837,6 +1827,16 @@ class AssemblerView extends ItemView {
     } else {
       await this.renderOutlineSection(container, project, projectFile);
     }
+
+    // ── Footer: New Essay ──
+    const footer = container.createDiv({ cls: "na-footer" });
+    const newBtn = footer.createEl("button", {
+      cls: "na-new-essay-link",
+      text: "+ New Essay",
+    });
+    newBtn.addEventListener("click", () => {
+      this.openNewProjectModal();
+    });
 
   }
 
