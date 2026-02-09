@@ -288,6 +288,32 @@ export default class NoteAssemblerPlugin extends Plugin {
       })
     );
 
+    // Keep project filePath in sync when files are moved/renamed
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        let changed = false;
+        for (const p of this.data.projects) {
+          if (p.filePath === oldPath) {
+            p.filePath = file.path;
+            changed = true;
+          }
+          // Also update source paths
+          for (const s of p.sources) {
+            if (s.notePath === oldPath) {
+              s.notePath = file.path;
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          this.savePluginData();
+          this.updateProjectFileClass();
+          this.updateStatusBar();
+          this.refreshView();
+        }
+      })
+    );
+
     // Watch for file changes to update sidebar
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
