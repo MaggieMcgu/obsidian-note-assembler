@@ -29,6 +29,7 @@ interface Project {
   sourceFolder: string; // vault-relative folder path, "" = all
   sources: ProjectSource[];
   lastActiveAt?: number;
+  archived?: boolean;
 }
 
 interface NoteAssemblerSettings {
@@ -224,20 +225,14 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.addCommand({
       id: "stop-tracking",
-      name: "Stop tracking current note in Cairn",
+      name: "Archive current Cairn project",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
         const project = this.findProjectForFile(file.path);
         if (!project) return false;
         if (checking) return true;
-        confirmModal(
-          this.app,
-          "Stop tracking",
-          `Stop tracking "${project.name}" in Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
-        ).then((confirmed) => {
-          if (confirmed) this.untrackProject(project.id);
-        });
+        this.untrackProject(project.id);
         return true;
       },
     });
@@ -276,7 +271,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFile) || file.extension !== "md") return;
-        const projects = this.data.projects.filter(
+        const projects = this.activeProjects().filter(
           (p) => p.filePath !== file.path
         );
         if (projects.length === 0) return;
@@ -337,7 +332,7 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     // Restore sidebar + heading class once workspace is ready
     this.app.workspace.onLayoutReady(() => {
-      if (this.data.projects.length > 0) {
+      if (this.activeProjects().length > 0) {
         this.activateView();
         // Also open the active project file if it isn't already open
         const project = this.getActiveProject();
@@ -369,8 +364,12 @@ export default class NoteAssemblerPlugin extends Plugin {
     });
   }
 
+  activeProjects(): Project[] {
+    return this.data.projects.filter((p) => !p.archived);
+  }
+
   findProjectForFile(filePath: string): Project | null {
-    return this.data.projects.find((p) => p.filePath === filePath) ?? null;
+    return this.data.projects.find((p) => p.filePath === filePath && !p.archived) ?? null;
   }
 
   trackFileAsProject(file: TFile) {
@@ -399,7 +398,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     document.querySelectorAll(".cairn-header-icon").forEach((el) => el.remove());
 
     const activeProject = this.getActiveProject();
-    const projectPaths = new Set(this.data.projects.map((p) => p.filePath));
+    const projectPaths = new Set(this.activeProjects().map((p) => p.filePath));
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
       const file = (leaf.view as any)?.file;
@@ -1299,10 +1298,27 @@ export default class NoteAssemblerPlugin extends Plugin {
   }
 
   async untrackProject(projectId: string) {
-    this.data.projects = this.data.projects.filter((p) => p.id !== projectId);
-    this.data.activeProjectId = this.data.projects[0]?.id ?? null;
+    const project = this.data.projects.find((p) => p.id === projectId);
+    if (project) project.archived = true;
+    if (this.data.activeProjectId === projectId) {
+      this.data.activeProjectId = this.activeProjects()[0]?.id ?? null;
+    }
     await this.savePluginData();
+    this.updateProjectFileClass();
+    this.updateStatusBar();
     this.refreshView();
+  }
+
+  async unarchiveProject(projectId: string) {
+    const project = this.data.projects.find((p) => p.id === projectId);
+    if (project) {
+      project.archived = false;
+      this.data.activeProjectId = project.id;
+      await this.savePluginData();
+      this.updateProjectFileClass();
+      this.updateStatusBar();
+      this.refreshView();
+    }
   }
 
   // ── Sample project ──
@@ -1505,7 +1521,7 @@ From the source preview, you have four options:
       highlightMatch,
       sourceFile,
       defaultFolder,
-      this.data.settings.showProjectsInDistill ? this.data.projects : [],
+      this.data.settings.showProjectsInDistill ? this.activeProjects() : [],
       this.data.activeProjectId,
       async (idea, title, folder, selectedProjectIds) => {
         const safeName = sanitizeFilename(title);
@@ -1701,7 +1717,7 @@ class AssemblerView extends ItemView {
       });
 
       // Show existing projects as a list below
-      const projects = [...this.plugin.data.projects].sort(
+      const projects = [...this.plugin.activeProjects()].sort(
         (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
       );
       if (projects.length > 0) {
@@ -1728,7 +1744,7 @@ class AssemblerView extends ItemView {
     const projectRow = header.createDiv({ cls: "na-project-row" });
 
     const select = projectRow.createEl("select", { cls: "na-project-select" });
-    const projects = [...this.plugin.data.projects].sort(
+    const projects = [...this.plugin.activeProjects()].sort(
       (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
     );
 
@@ -3354,6 +3370,52 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
             await this.plugin.savePluginData();
           })
       );
+
+    containerEl.createEl("h3", { text: "Tracked Projects" });
+
+    const active = [...this.plugin.activeProjects()].sort(
+      (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
+    );
+    const archived = this.plugin.data.projects.filter((p) => p.archived).sort(
+      (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
+    );
+
+    if (active.length === 0 && archived.length === 0) {
+      containerEl.createEl("p", {
+        text: "No projects yet. Open a note and use the ribbon icon or command palette to start tracking.",
+        cls: "setting-item-description",
+      });
+    } else {
+      for (const p of active) {
+        new Setting(containerEl)
+          .setName(p.name)
+          .setDesc(p.filePath)
+          .addButton((btn) =>
+            btn
+              .setButtonText("Archive")
+              .onClick(async () => {
+                this.plugin.untrackProject(p.id);
+                this.display();
+              })
+          );
+      }
+      if (archived.length > 0) {
+        containerEl.createEl("h4", { text: "Archived", cls: "setting-item-description" });
+        for (const p of archived) {
+          new Setting(containerEl)
+            .setName(p.name)
+            .setDesc(p.filePath)
+            .addButton((btn) =>
+              btn
+                .setButtonText("Unarchive")
+                .onClick(async () => {
+                  this.plugin.unarchiveProject(p.id);
+                  this.display();
+                })
+            );
+        }
+      }
+    }
 
     containerEl.createEl("h3", { text: "Support" });
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
