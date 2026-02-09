@@ -5,6 +5,35 @@
   font-size: var(--font-ui-small);
 }
 
+/* ── Brand ── */
+
+.na-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.na-brand-icon {
+  display: flex;
+  align-items: center;
+  color: var(--interactive-accent);
+}
+
+.na-brand-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.na-brand-name {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+  letter-spacing: 0.02em;
+}
+
 /* ── Header ── */
 
 .na-header {

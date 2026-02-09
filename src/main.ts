@@ -1694,6 +1694,12 @@ class AssemblerView extends ItemView {
     container.empty();
     container.addClass("note-assembler");
 
+    // ── Cairn branding ──
+    const brand = container.createDiv({ cls: "na-brand" });
+    const brandIcon = brand.createSpan({ cls: "na-brand-icon" });
+    setIcon(brandIcon, "layers");
+    brand.createSpan({ cls: "na-brand-name", text: "Cairn" });
+
     const project = this.plugin.getActiveProject();
 
     // ── No active project: clean landing with two buttons ──
