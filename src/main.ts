@@ -95,6 +95,7 @@ interface HeadingGroup {
 
 export default class NoteAssemblerPlugin extends Plugin {
   data: NoteAssemblerData = DEFAULT_DATA;
+  private statusBarEl: HTMLElement | null = null;
 
   async onload() {
     await this.loadPluginData();
@@ -102,7 +103,12 @@ export default class NoteAssemblerPlugin extends Plugin {
     this.registerView(VIEW_TYPE, (leaf) => new AssemblerView(leaf, this));
 
     this.addRibbonIcon("layers", "Cairn — Essay Composer", () => {
-      this.activateView();
+      const file = this.app.workspace.getActiveFile();
+      if (file && file.extension === "md" && !this.findProjectForFile(file.path)) {
+        this.trackFileAsProject(file);
+      } else {
+        this.activateView();
+      }
     });
 
     this.addRibbonIcon("sparkles", "Distill highlight to note", () => {
@@ -202,6 +208,19 @@ export default class NoteAssemblerPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "track-current-note",
+      name: "Track current note as Cairn project",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (this.findProjectForFile(file.path)) return false;
+        if (checking) return true;
+        this.trackFileAsProject(file);
+        return true;
+      },
+    });
+
     this.addSettingTab(new NoteAssemblerSettingTab(this.app, this));
 
     // Right-click context menu in editors
@@ -264,15 +283,34 @@ export default class NoteAssemblerPlugin extends Plugin {
       })
     );
 
-    // Tag editor with CSS class when viewing the active project file
+    // Status bar indicator for project files
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.addClass("cairn-status-bar");
+    this.statusBarEl.style.display = "none";
+    this.statusBarEl.onClickEvent(() => {
+      const activeFile = this.app.workspace.getActiveFile();
+      if (activeFile) {
+        const project = this.findProjectForFile(activeFile.path);
+        if (project && project.id !== this.data.activeProjectId) {
+          this.data.activeProjectId = project.id;
+          this.savePluginData();
+          this.refreshView();
+        }
+      }
+      this.activateView();
+    });
+
+    // Tag editor with CSS class when viewing any project file
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
         this.updateProjectFileClass();
+        this.updateStatusBar();
       })
     );
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
         this.updateProjectFileClass();
+        this.updateStatusBar();
       })
     );
 
@@ -297,7 +335,10 @@ export default class NoteAssemblerPlugin extends Plugin {
           }
         }
       }
-      setTimeout(() => this.updateProjectFileClass(), 100);
+      setTimeout(() => {
+        this.updateProjectFileClass();
+        this.updateStatusBar();
+      }, 100);
     });
   }
 
@@ -307,22 +348,91 @@ export default class NoteAssemblerPlugin extends Plugin {
     });
   }
 
+  findProjectForFile(filePath: string): Project | null {
+    return this.data.projects.find((p) => p.filePath === filePath) ?? null;
+  }
+
+  trackFileAsProject(file: TFile) {
+    const project: Project = {
+      id: generateId(),
+      name: file.basename,
+      filePath: file.path,
+      sourceFolder: "",
+      sources: [],
+    };
+    this.data.projects.push(project);
+    this.data.activeProjectId = project.id;
+    this.savePluginData();
+    this.updateProjectFileClass();
+    this.updateStatusBar();
+    this.refreshView();
+    this.activateView();
+    new Notice(`Tracking "${file.basename}" as a Cairn project`);
+  }
+
   updateProjectFileClass() {
     document.querySelectorAll(".cairn-project-file").forEach((el) => {
       el.classList.remove("cairn-project-file", "cairn-hide-headings");
     });
-    const project = this.getActiveProject();
-    if (!project) return;
+    // Remove stale header icons from all leaves
+    document.querySelectorAll(".cairn-header-icon").forEach((el) => el.remove());
+
+    const activeProject = this.getActiveProject();
+    const projectPaths = new Set(this.data.projects.map((p) => p.filePath));
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
       const file = (leaf.view as any)?.file;
-      if (file && file.path === project.filePath) {
+      if (!file) continue;
+
+      const isProject = projectPaths.has(file.path);
+
+      if (isProject) {
         leaf.view.containerEl.classList.add("cairn-project-file");
-        if (this.data.settings.hideHeadings) {
+        if (activeProject && file.path === activeProject.filePath && this.data.settings.hideHeadings) {
           leaf.view.containerEl.classList.add("cairn-hide-headings");
         }
-        break;
       }
+
+      // Add header icon to project files only
+      if (isProject) {
+        const actions = leaf.view.containerEl.querySelector(".view-actions");
+        if (actions && !actions.querySelector(".cairn-header-icon")) {
+          const btn = actions.createEl("a", {
+            cls: "view-action cairn-header-icon",
+            attr: { "aria-label": "Open in Cairn" },
+          });
+          setIcon(btn, "layers");
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const project = this.findProjectForFile(file.path);
+            if (project && project.id !== this.data.activeProjectId) {
+              this.data.activeProjectId = project.id;
+              this.savePluginData();
+              this.refreshView();
+            }
+            this.activateView();
+          });
+        }
+      }
+    }
+  }
+
+  updateStatusBar() {
+    if (!this.statusBarEl) return;
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      this.statusBarEl.style.display = "none";
+      return;
+    }
+    const project = this.findProjectForFile(activeFile.path);
+    if (project) {
+      this.statusBarEl.empty();
+      const icon = this.statusBarEl.createSpan({ cls: "cairn-status-icon" });
+      setIcon(icon, "layers");
+      this.statusBarEl.createSpan({ text: project.name });
+      this.statusBarEl.style.display = "";
+    } else {
+      this.statusBarEl.style.display = "none";
     }
   }
 
@@ -1682,13 +1792,13 @@ class AssemblerView extends ItemView {
 
     const finishBtn = footer.createEl("button", {
       cls: "na-btn na-footer-btn na-footer-finish",
-      text: "Close Project",
+      text: "Stop tracking in Cairn",
     });
     finishBtn.addEventListener("click", async () => {
       const confirmed = await confirmModal(
         this.app,
-        "Close Project",
-        `Remove "${project.name}" from Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
+        "Stop tracking",
+        `Stop tracking "${project.name}" in Cairn? Your note stays in your vault \u2014 Cairn just stops managing it.`
       );
       if (confirmed) {
         this.plugin.untrackProject(project.id);

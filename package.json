@@ -1,11 +1,12 @@
 {
   "name": "note-assembler",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Compose essays from your notes — pull, arrange, extract, export",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production",
+    "deploy": "node esbuild.config.mjs production && cp main.js styles.css \"$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/Braaaaains/.obsidian/plugins/note-assembler/\""
   },
   "devDependencies": {
     "@types/node": "^16.11.6",

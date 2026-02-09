@@ -926,6 +926,42 @@ select.na-modal-input {
   margin: 0;
 }
 
+/* ── Project file indicator (left border on essay editors) ── */
+
+.cairn-project-file .cm-editor {
+  border-left: 3px solid var(--interactive-accent);
+}
+
+/* ── Header icon (view actions area) ── */
+
+.cairn-header-icon {
+  color: var(--interactive-accent);
+}
+
+
+/* ── Status bar ── */
+
+.cairn-status-bar {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cairn-status-bar:hover {
+  color: var(--text-accent);
+}
+
+.cairn-status-icon {
+  display: flex;
+  align-items: center;
+}
+
+.cairn-status-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* ── Hide headings + sources toggle ── */
 
 .cairn-hide-headings .HyperMD-header-2,
