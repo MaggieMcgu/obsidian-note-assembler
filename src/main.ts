@@ -1727,6 +1727,11 @@ class AssemblerView extends ItemView {
     const brandIcon = brand.createSpan({ cls: "na-brand-icon" });
     setIcon(brandIcon, "layers");
     brand.createSpan({ cls: "na-brand-name", text: "Cairn" });
+    const helpBtn = brand.createSpan({ cls: "na-brand-help" });
+    setIcon(helpBtn, "help-circle");
+    helpBtn.addEventListener("click", () => {
+      new CairnHelpModal(this.app).open();
+    });
 
     const project = this.plugin.getActiveProject();
 
@@ -2922,6 +2927,101 @@ class TrackFileModal extends FuzzySuggestModal<TFile> {
 
   onChooseItem(file: TFile) {
     this.onChooseFile(file);
+  }
+}
+
+// ── Help Modal ──────────────────────────────────────────────
+
+class CairnHelpModal extends Modal {
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("cairn-help-modal");
+
+    contentEl.createEl("h2", { text: "Welcome to Cairn" });
+    contentEl.createEl("p", {
+      text: "Cairn helps you compose essays from your notes. Think of it as a workbench — you gather source material, pull in the pieces you need, and arrange them into something new.",
+    });
+
+    const idea = contentEl.createDiv({ cls: "cairn-help-concept" });
+    idea.createEl("h3", { text: "The idea" });
+    const ideaP = idea.createEl("p");
+    ideaP.appendText("If you keep ");
+    ideaP.createEl("a", {
+      text: "atomic notes",
+      href: "https://notes.andymatuschak.org/Evergreen_notes_should_be_atomic",
+    }).setAttr("target", "_blank");
+    ideaP.appendText(" — small notes about single ideas — Cairn gives you a way to weave them into longer pieces. It's inspired by the ");
+    ideaP.createEl("a", {
+      text: "Zettelkasten",
+      href: "https://zettelkasten.de/overview/",
+    }).setAttr("target", "_blank");
+    ideaP.appendText(" method of building knowledge from the bottom up.");
+
+    const steps = contentEl.createDiv({ cls: "cairn-help-steps" });
+    steps.createEl("h3", { text: "How it works" });
+
+    const stepData = [
+      {
+        num: "1",
+        title: "Start an essay",
+        body: "Click the + New Essay button or track an existing note using the ribbon icon (the stacked layers in your left sidebar).",
+      },
+      {
+        num: "2",
+        title: "Gather sources",
+        body: "Right-click any note in your file explorer and send it to your project's source queue. These are the notes you'll draw from.",
+      },
+      {
+        num: "3",
+        title: "Pull quotes into your essay",
+        body: "Open a source in the sidebar, read through it, and select the parts you want. Right-click your selection and choose \"Add quote to essay.\" Cairn drops it right into your draft.",
+      },
+      {
+        num: "4",
+        title: "Arrange your thinking",
+        body: "Use the Outline tab to see your essay's structure. Drag sections around, add headings, and move blocks until the flow feels right.",
+      },
+      {
+        num: "5",
+        title: "Export when you're ready",
+        body: "Use the command palette (Cmd/Ctrl+P → \"Export final essay\") to copy a clean version to your clipboard.",
+      },
+    ];
+
+    for (const s of stepData) {
+      const row = steps.createDiv({ cls: "cairn-help-step" });
+      row.createSpan({ cls: "cairn-help-step-num", text: s.num });
+      const content = row.createDiv({ cls: "cairn-help-step-content" });
+      content.createEl("strong", { text: s.title });
+      content.createEl("p", { text: s.body });
+    }
+
+    const tips = contentEl.createDiv({ cls: "cairn-help-tips" });
+    tips.createEl("h3", { text: "Good to know" });
+    const tipList = tips.createEl("ul");
+
+    const distillTip = tipList.createEl("li");
+    distillTip.createEl("strong", { text: "Distill: " });
+    distillTip.appendText("Select any text and click the ✨ sparkles icon in the left sidebar to turn a highlight into its own note. Great for capturing ideas as you read.");
+
+    const archiveTip = tipList.createEl("li");
+    archiveTip.createEl("strong", { text: "Your notes are always yours: " });
+    archiveTip.appendText("Cairn never modifies your source notes. Your essay is a regular markdown file. If you stop using Cairn, everything stays exactly where it is.");
+
+    const folderTip = tipList.createEl("li");
+    folderTip.createEl("strong", { text: "Essay folder: " });
+    folderTip.appendText("New essays are saved to your Cairn Essays folder (you can change this in settings).");
+
+    const close = contentEl.createDiv({ cls: "cairn-help-footer" });
+    const closeBtn = close.createEl("button", {
+      cls: "na-btn na-btn-primary",
+      text: "Got it",
+    });
+    closeBtn.addEventListener("click", () => this.close());
+  }
+
+  onClose() {
+    this.contentEl.empty();
   }
 }
 

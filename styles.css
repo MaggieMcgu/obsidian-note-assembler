@@ -37,6 +37,117 @@
   letter-spacing: 0.02em;
 }
 
+.na-brand-help {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.na-brand-help svg {
+  width: 16px;
+  height: 16px;
+}
+
+.na-brand-help:hover {
+  color: var(--text-muted);
+}
+
+/* ── Help Modal ── */
+
+.cairn-help-modal {
+  max-width: 500px;
+}
+
+.cairn-help-modal h2 {
+  margin-bottom: 8px;
+}
+
+.cairn-help-modal p {
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.cairn-help-modal a {
+  color: var(--text-accent);
+}
+
+.cairn-help-modal a:hover {
+  text-decoration: underline;
+}
+
+.cairn-help-concept {
+  margin-bottom: 8px;
+}
+
+.cairn-help-modal h3 {
+  font-size: var(--font-ui-medium);
+  margin: 16px 0 8px;
+  color: var(--text-normal);
+}
+
+.cairn-help-steps {
+  margin-bottom: 8px;
+}
+
+.cairn-help-step {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.cairn-help-step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.cairn-help-step-content strong {
+  display: block;
+  color: var(--text-normal);
+  margin-bottom: 2px;
+}
+
+.cairn-help-step-content p {
+  margin: 0;
+  font-size: var(--font-ui-small);
+}
+
+.cairn-help-tips {
+  margin-bottom: 8px;
+}
+
+.cairn-help-tips ul {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.cairn-help-tips li {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.cairn-help-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 /* ── Header ── */
 
 .na-header {
