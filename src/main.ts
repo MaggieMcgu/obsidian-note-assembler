@@ -1795,6 +1795,15 @@ class AssemblerView extends ItemView {
         cls: "na-empty",
         text: `File "${project.filePath}" not found.`,
       });
+      const archiveBtn = container.createEl("button", {
+        cls: "na-btn na-btn-primary",
+        text: "Archive this project",
+      });
+      archiveBtn.style.width = "100%";
+      archiveBtn.style.marginTop = "8px";
+      archiveBtn.addEventListener("click", () => {
+        this.plugin.untrackProject(project.id);
+      });
       return;
     }
 
