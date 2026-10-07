@@ -42,6 +42,7 @@ interface NoteAssemblerSettings {
   hideHeadings: boolean;
   newEssayTemplate: string;
   essayFolder: string;
+  strikeAfterDistill: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
@@ -54,6 +55,7 @@ const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   hideHeadings: false,
   newEssayTemplate: "",
   essayFolder: "Cairn Essays",
+  strikeAfterDistill: true,
 };
 
 interface NoteAssemblerData {
@@ -119,6 +121,11 @@ export default class NoteAssemblerPlugin extends Plugin {
       const view = this.app.workspace.getActiveViewOfType(ItemView) as any;
       const selection = view?.editor?.getSelection?.()?.trim();
       if (!selection) {
+        const pdf = this.currentPdfSelection();
+        if (pdf) {
+          this.distillHighlight(pdf.text, pdf.file, pdf);
+          return;
+        }
         new Notice("Select some text first, then click Distill");
         return;
       }
@@ -194,6 +201,25 @@ export default class NoteAssemblerPlugin extends Plugin {
         if (!project || !selection.trim() || !view.file) return false;
         if (checking) return true;
         this.addSelectionToEssay(project, selection, view.file);
+        return true;
+      },
+    });
+
+    // Remember the last text selected inside a PDF view, so Distill still
+    // works after a click (ribbon/hotkey) moves focus away from the PDF.
+    this.registerDomEvent(document, "selectionchange", () => {
+      const pdf = this.readPdfSelection();
+      if (pdf) this.lastPdfSelection = { ...pdf, at: Date.now() };
+    });
+
+    this.addCommand({
+      id: "distill-pdf-selection",
+      name: "Distill PDF selection to note",
+      checkCallback: (checking) => {
+        const pdf = this.currentPdfSelection();
+        if (!pdf) return false;
+        if (checking) return true;
+        this.distillHighlight(pdf.text, pdf.file, pdf);
         return true;
       },
     });
@@ -1534,12 +1560,109 @@ From the source preview, you have four options:
     new Notice(`Added quote to ${project.name}`);
   }
 
+  // ── PDF selections ──
+
+  lastPdfSelection: (PdfSelection & { at: number }) | null = null;
+
+  /** Text currently selected inside an open PDF view, with its page. */
+  readPdfSelection(): PdfSelection | null {
+    const sel = window.getSelection();
+    const raw = sel?.toString() ?? "";
+    if (!sel || !raw.trim() || !sel.anchorNode) return null;
+    const node =
+      sel.anchorNode instanceof Element
+        ? sel.anchorNode
+        : sel.anchorNode.parentElement;
+    const pageEl = node?.closest(".page[data-page-number]") as HTMLElement | null;
+    if (!pageEl) return null;
+    let file: TFile | null = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const v = leaf.view as any;
+      if (!file && v?.getViewType?.() === "pdf" && v.containerEl?.contains(pageEl)) {
+        file = v.file ?? null;
+      }
+    });
+    if (!file) return null;
+    return {
+      text: cleanPdfText(raw),
+      file,
+      page: Number(pageEl.dataset.pageNumber) || 0,
+      pageLabel: pageEl.dataset.pageLabel || "",
+    };
+  }
+
+  /** Live PDF selection, or the one made in the last two minutes. */
+  currentPdfSelection(): PdfSelection | null {
+    const live = this.readPdfSelection();
+    if (live) return live;
+    const last = this.lastPdfSelection;
+    if (last && Date.now() - last.at < 2 * 60 * 1000) return last;
+    return null;
+  }
+
+  /** The markdown note that links to this PDF (e.g. "Book- Title"). */
+  findPdfCompanionNote(pdf: TFile): TFile | null {
+    const links = this.app.metadataCache.resolvedLinks;
+    const candidates: TFile[] = [];
+    for (const [path, targets] of Object.entries(links)) {
+      if (targets[pdf.path]) {
+        const f = this.app.vault.getAbstractFileByPath(path);
+        if (f instanceof TFile && f.extension === "md") candidates.push(f);
+      }
+    }
+    // Prefer a note that names an author in its properties.
+    candidates.sort((a, b) => {
+      const fa = this.app.metadataCache.getFileCache(a)?.frontmatter;
+      const fb = this.app.metadataCache.getFileCache(b)?.frontmatter;
+      return Number(!!(fb?.author || fb?.Author)) - Number(!!(fa?.author || fa?.Author));
+    });
+    return candidates[0] ?? null;
+  }
+
+  /** Readwise-style metadata, falling back to the note's properties. */
+  noteMetadata(file: TFile, content: string): SourceMetadata {
+    const meta = parseSourceMetadata(content);
+    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (fm) {
+      if (!meta.author && (fm.author || fm.Author)) {
+        meta.author = String(fm.author ?? fm.Author).replace(/\[\[|\]\]/g, "");
+      }
+      if (!meta.title && fm.title) meta.title = String(fm.title);
+    }
+    return meta;
+  }
+
   // ── Distill a highlight into an atomic note ──
 
-  async distillHighlight(selection: string, sourceFile: TFile) {
-    const content = await this.app.vault.read(sourceFile);
-    const metadata = parseSourceMetadata(content);
-    const highlightMatch = findMatchingHighlight(selection, content);
+  async distillHighlight(
+    selection: string,
+    sourceFile: TFile,
+    pdf?: PdfSelection
+  ) {
+    let metadata: SourceMetadata;
+    let highlightMatch: HighlightMatch | null;
+    // Where the "Source:" link and the backlink go. For a PDF that's its
+    // companion note (the markdown note that links to it), if there is one.
+    let sourceNote: TFile | null = sourceFile;
+    if (sourceFile.extension === "pdf") {
+      sourceNote = this.findPdfCompanionNote(sourceFile);
+      metadata = sourceNote
+        ? this.noteMetadata(sourceNote, await this.app.vault.read(sourceNote))
+        : { title: "", author: "", url: "", category: "" };
+      if (!metadata.title) metadata.title = sourceFile.basename;
+      const page = pdf?.page;
+      const label = pdf?.pageLabel || (page ? String(page) : "");
+      highlightMatch = {
+        cleanText: selection,
+        linkMarkdown: page
+          ? `[[${sourceFile.path}#page=${page}|p.${label}]]`
+          : `[[${sourceFile.path}]]`,
+      };
+    } else {
+      const content = await this.app.vault.read(sourceFile);
+      metadata = this.noteMetadata(sourceFile, content);
+      highlightMatch = findMatchingHighlight(selection, content);
+    }
     const defaultFolder = this.data.settings.distillDefaultFolder || "";
 
     new DistillModal(
@@ -1551,7 +1674,8 @@ From the source preview, you have four options:
       defaultFolder,
       this.data.settings.showProjectsInDistill ? this.activeProjects() : [],
       this.data.activeProjectId,
-      async (idea, title, folder, selectedProjectIds) => {
+      this.data.settings.strikeAfterDistill,
+      async (idea, title, folder, selectedProjectIds, noteType, strike) => {
         const safeName = sanitizeFilename(title);
         if (!safeName) {
           new Notice("Note title cannot be empty");
@@ -1570,7 +1694,11 @@ From the source preview, you have four options:
         const quoteText = highlightMatch
           ? highlightMatch.cleanText
           : selection.trim();
-        const lines: string[] = [];
+        const lines: string[] = ["---", `type: ${noteType}`];
+        if (metadata.author && (noteType === "quote" || noteType === "concept")) {
+          lines.push(`author: "${metadata.author.replace(/"/g, "'")}"`);
+        }
+        lines.push("---", "");
 
         if (idea.trim()) {
           lines.push(idea.trim());
@@ -1581,7 +1709,11 @@ From the source preview, you have four options:
         lines.push("");
         lines.push(`> ${quoteText}`);
         lines.push("");
-        lines.push(`- Source: [[${sourceFile.basename}]]`);
+        lines.push(
+          sourceNote
+            ? `- Source: [[${sourceNote.basename}]]`
+            : `- Source: [[${sourceFile.path}]]`
+        );
         if (metadata.author) {
           lines.push(`- Author: ${metadata.author}`);
         }
@@ -1592,7 +1724,8 @@ From the source preview, you have four options:
 
         await this.app.vault.create(targetPath, lines.join("\n"));
 
-        if (this.data.settings.addBacklinkToSource) {
+        if (this.data.settings.addBacklinkToSource && sourceNote) {
+          const sourceFile = sourceNote;
           const sourceContent = await this.app.vault.read(sourceFile);
           const notesHeading = "## Notes";
           const backlinkLine = `- [[${safeName}]]`;
@@ -1641,6 +1774,18 @@ From the source preview, you have four options:
         }
 
         new Notice(`Created "${safeName}.md"`);
+
+        this.data.settings.strikeAfterDistill = strike;
+        await this.savePluginData();
+        if (strike) {
+          const flint = (this.app as any).plugins?.plugins?.flint;
+          const noteFile = this.app.vault.getAbstractFileByPath(targetPath);
+          if (flint?.openSpark && noteFile instanceof TFile) {
+            flint.openSpark(noteFile);
+          } else if (!flint) {
+            new Notice("Flint isn't enabled, so there's nothing to strike with.");
+          }
+        }
       }
     ).open();
   }
@@ -3220,11 +3365,14 @@ class DistillModal extends Modal {
   defaultFolder: string;
   projects: Project[];
   activeProjectId: string | null;
+  strikeDefault: boolean;
   onSubmit: (
     idea: string,
     title: string,
     folder: string,
-    selectedProjectIds: string[]
+    selectedProjectIds: string[],
+    noteType: string,
+    strike: boolean
   ) => void;
 
   constructor(
@@ -3236,14 +3384,18 @@ class DistillModal extends Modal {
     defaultFolder: string,
     projects: Project[],
     activeProjectId: string | null,
+    strikeDefault: boolean,
     onSubmit: (
       idea: string,
       title: string,
       folder: string,
-      selectedProjectIds: string[]
+      selectedProjectIds: string[],
+      noteType: string,
+      strike: boolean
     ) => void
   ) {
     super(app);
+    this.strikeDefault = strikeDefault;
     this.quote = quote;
     this.metadata = metadata;
     this.highlightMatch = highlightMatch;
@@ -3275,8 +3427,21 @@ class DistillModal extends Modal {
     const titleInput = contentEl.createEl("input", {
       type: "text",
       cls: "fl-title-input",
-      placeholder: "Note title",
+      placeholder: "Title: your idea as a full sentence",
     });
+
+    const typeRow = contentEl.createDiv({ cls: "fl-type-row" });
+    typeRow.createEl("label", { text: "Type ", cls: "fl-project-label" });
+    const typeSelect = typeRow.createEl("select", { cls: "na-modal-input" });
+    for (const [value, label] of [
+      ["claim", "claim (your idea)"],
+      ["concept", "concept (a term)"],
+      ["quote", "quote (exact words)"],
+      ["anecdote", "anecdote (a story)"],
+    ]) {
+      typeSelect.createEl("option", { text: label, value });
+    }
+    typeSelect.value = "claim";
 
     let titleManuallyEdited = false;
     titleInput.addEventListener("input", () => {
@@ -3343,6 +3508,14 @@ class DistillModal extends Modal {
       }
     }
 
+    const strikeRow = contentEl.createDiv({ cls: "fl-check-row" });
+    const strikeCb = strikeRow.createEl("input", { type: "checkbox" });
+    strikeCb.id = "fl-strike-after";
+    strikeCb.checked = this.strikeDefault;
+    strikeRow
+      .createEl("label", { text: "Then strike it in Flint (pair it with a lonely note)" })
+      .setAttr("for", strikeCb.id);
+
     const btnRow = contentEl.createDiv({ cls: "na-modal-buttons" });
     const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
     cancelBtn.addEventListener("click", () => this.close());
@@ -3363,7 +3536,14 @@ class DistillModal extends Modal {
         if (cb.checked) selectedIds.push(id);
       });
       this.close();
-      this.onSubmit(textarea.value, title, folderSelect.value, selectedIds);
+      this.onSubmit(
+        textarea.value,
+        title,
+        folderSelect.value,
+        selectedIds,
+        typeSelect.value,
+        strikeCb.checked
+      );
     };
 
     createBtn.addEventListener("click", submit);
@@ -3670,6 +3850,22 @@ function parseSourceMetadata(content: string): SourceMetadata {
   }
 
   return meta;
+}
+
+interface PdfSelection {
+  text: string;
+  file: TFile;
+  page: number;
+  pageLabel: string;
+}
+
+/** Undo PDF line breaks: rejoin hyphenated words, turn breaks into spaces. */
+function cleanPdfText(raw: string): string {
+  return raw
+    .replace(/(\w)-\s*\n\s*(\w)/g, "$1$2")
+    .replace(/\s*\n\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 interface HighlightMatch {
