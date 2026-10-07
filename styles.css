@@ -226,6 +226,12 @@
   cursor: not-allowed;
 }
 
+/* Full-width button (e.g. "Archive this project" when the file is missing) */
+.note-assembler .na-btn-full {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .na-btn-icon {
   display: flex;
   align-items: center;

@@ -1,7 +1,7 @@
 {
   "name": "note-assembler",
   "version": "0.6.0",
-  "description": "Compose essays from your notes \u2014 pull, arrange, extract, export",
+  "description": "Compose essays from your notes by pulling in atomic notes and quotes, arranging the argument, and extracting new ideas back out.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -10,7 +10,6 @@
   },
   "devDependencies": {
     "@types/node": "^16.11.6",
-    "builtin-modules": "^3.3.0",
     "esbuild": "0.17.3",
     "obsidian": "latest",
     "typescript": "4.7.4",

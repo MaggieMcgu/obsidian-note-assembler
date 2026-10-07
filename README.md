@@ -24,7 +24,7 @@ Throughline takes a different approach: your essay is a normal markdown file. Th
 4. **Pull in notes** — Fuzzy search your vault, add notes as sections. Content is copied in, so you can freely edit it
 5. **Browse & collect** — Navigate source notes with the sidebar open. Right-click quotes to add them directly to your essay
 6. **Rearrange** — Drag sections or use arrow buttons to build your argument
-7. **Write** — Hit "Open Essay" to return. Edit directly in the file; the sidebar reflects your structure live
+7. **Write** — Hit "Open note" to return. Edit directly in the file; the sidebar reflects your structure live
 8. **Extract back** — When a new idea emerges, extract it as a standalone note. The Zettelkasten loop completes
 9. **Export** — Copy to clipboard with wikilinks stripped, headings optionally removed, ready for publication
 
@@ -35,7 +35,7 @@ Throughline takes a different approach: your essay is a normal markdown file. Th
 - **Click to jump** to any section in the editor
 - **Drag-and-drop** or **arrow buttons** to reorder
 - **Word count** updates live as you write
-- **Open Essay** button to navigate back to the project file from anywhere
+- **Open note** button to navigate back to the project file from anywhere
 
 ### Pull In Notes
 - Fuzzy search with source folder picker in the dialog
@@ -47,7 +47,7 @@ Throughline takes a different approach: your essay is a normal markdown file. Th
 Keep the sidebar open while navigating source notes. Right-click selected text for:
 - **Add quote to essay** — Inserts a blockquote section with a `Quote: ...` heading and `— [[Source]]` attribution
 
-Then hit **Open Essay** to return and write your connective tissue.
+Then hit **Open note** to return and write your connective tissue.
 
 ### Collect vs. Distill
 
@@ -63,7 +63,7 @@ If you're familiar with Tiago Forte's CODE framework (Capture, Organize, Distill
 | **Capture** | Readwise highlights, reading, bookmarks |
 | **Organize** | Pull in notes, rearrange in sidebar |
 | **Distill** | the Distill plugin — turn quotes into your own ideas |
-| **Express** | Write the essay, Export Final Essay |
+| **Express** | Write the essay, Export final essay |
 
 "Add Quote" lives between Capture and Organize — you're collecting raw material into your essay's structure. "Distill" is explicitly the D — the moment someone else's words become your knowledge. You can mix both freely in one session.
 
@@ -73,7 +73,7 @@ If you're familiar with Tiago Forte's CODE framework (Capture, Organize, Distill
 - Source tracking updated automatically
 - Essay text stays intact — you're birthing a new note, not hollowing out your writing
 
-### Export Final Essay
+### Export final essay
 - Strips `[[wikilinks]]` (keeps display text)
 - Removes the Sources section
 - Option to include or strip `##` headings (configurable in settings)
@@ -112,9 +112,9 @@ Search "Throughline" or "essay composer" in Settings > Community Plugins > Brows
 
 ## Usage Tips
 
-- **Start with a thesis.** The "New Essay" prompt nudges you toward an argumentative title. A clear claim makes it easier to decide which notes belong and which don't.
+- **Start with a thesis.** The "New essay" prompt nudges you toward an argumentative title. A clear claim makes it easier to decide which notes belong and which don't.
 - **Set a source folder** in the "Add Note" dialog to filter the fuzzy search to a specific area of your vault.
-- **Use the browsing workflow.** Keep the sidebar open while reading source notes. Add quotes (and distill highlights with the Distill plugin) as you go, then hit "Open Essay" to write.
+- **Use the browsing workflow.** Keep the sidebar open while reading source notes. Add quotes (and distill highlights with the Distill plugin) as you go, then hit "Open note" to write.
 - **Use Related Notes** to follow the trail. When you pull in a note that links to other notes, they'll appear as suggestions.
 - **Distill, don't just collect.** the Distill plugin asks "What does this mean to you?" — writing the idea in your own words is where the thinking happens.
 - **Extract freely.** If you write three paragraphs that feel like their own idea, extract them. The best notes are born during writing, not before it.

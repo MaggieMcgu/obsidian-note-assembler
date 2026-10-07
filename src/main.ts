@@ -2,13 +2,15 @@ import {
   App,
   FuzzySuggestModal,
   ItemView,
-  Menu,
+  MarkdownView,
   Modal,
   Notice,
   Plugin,
   PluginSettingTab,
   Setting,
+  TAbstractFile,
   TFile,
+  TFolder,
   WorkspaceLeaf,
   debounce,
   setIcon,
@@ -89,6 +91,17 @@ interface HeadingGroup {
   childIndices: number[];     // indices in flat blocks array
 }
 
+// Obsidian's internal drag manager (private API) — only the fields we read
+interface AppWithDragManager extends App {
+  dragManager?: {
+    draggable?: {
+      type?: string;
+      file?: TAbstractFile;
+      files?: TAbstractFile[];
+    } | null;
+  };
+}
+
 // ── Plugin ──────────────────────────────────────────────────
 
 export default class NoteAssemblerPlugin extends Plugin {
@@ -105,14 +118,14 @@ export default class NoteAssemblerPlugin extends Plugin {
       if (file && file.extension === "md" && !this.findProjectForFile(file.path)) {
         this.trackFileAsProject(file);
       } else {
-        this.activateView();
+        void this.activateView();
       }
     });
 
     this.addCommand({
-      id: "open-note-assembler",
-      name: "Open Throughline",
-      callback: () => this.activateView(),
+      id: "open-sidebar",
+      name: "Open essay sidebar",
+      callback: () => void this.activateView(),
     });
 
     this.addCommand({
@@ -124,7 +137,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         if (!file || !project) return false;
         if (file.path === project.filePath) return false;
         if (checking) return true;
-        this.addSourceToQueue(project, file);
+        void this.addSourceToQueue(project, file);
         return true;
       },
     });
@@ -136,7 +149,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         const project = this.getActiveProject();
         if (!project) return false;
         if (checking) return true;
-        this.addBlankSection(project);
+        void this.addBlankSection(project);
         return true;
       },
     });
@@ -148,7 +161,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         const project = this.getActiveProject();
         if (!project) return false;
         if (checking) return true;
-        this.copyCleanExport(project);
+        void this.copyCleanExport(project);
         return true;
       },
     });
@@ -161,7 +174,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         const selection = editor.getSelection();
         if (!project || !selection.trim()) return false;
         if (checking) return true;
-        this.extractSelectionToNote(project, selection);
+        void this.extractSelectionToNote(project, selection);
         return true;
       },
     });
@@ -174,14 +187,14 @@ export default class NoteAssemblerPlugin extends Plugin {
         const selection = editor.getSelection();
         if (!project || !selection.trim() || !view.file) return false;
         if (checking) return true;
-        this.addSelectionToEssay(project, selection, view.file);
+        void this.addSelectionToEssay(project, selection, view.file);
         return true;
       },
     });
 
     this.addCommand({
       id: "track-current-note",
-      name: "Track current note as Throughline project",
+      name: "Track current note as an essay",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || file.extension !== "md") return false;
@@ -194,14 +207,14 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.addCommand({
       id: "stop-tracking",
-      name: "Archive current Throughline project",
+      name: "Archive current essay",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
         const project = this.findProjectForFile(file.path);
         if (!project) return false;
         if (checking) return true;
-        this.untrackProject(project.id);
+        void this.untrackProject(project.id);
         return true;
       },
     });
@@ -220,7 +233,7 @@ export default class NoteAssemblerPlugin extends Plugin {
                 .setTitle("Add quote to essay")
                 .setIcon("plus-circle")
                 .onClick(() => {
-                  this.addSelectionToEssay(project, selection, view.file!);
+                  void this.addSelectionToEssay(project, selection, view.file!);
                 });
             });
           }
@@ -267,7 +280,7 @@ export default class NoteAssemblerPlugin extends Plugin {
           }
         }
         if (changed) {
-          this.savePluginData();
+          void this.savePluginData();
           this.updateProjectFileClass();
           this.updateStatusBar();
           this.refreshView();
@@ -281,7 +294,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         const project = this.getActiveProject();
         if (project && file instanceof TFile && file.path === project.filePath) {
           this.refreshView();
-          setTimeout(() => this.updateProjectFileClass(), 50);
+          window.setTimeout(() => this.updateProjectFileClass(), 50);
         }
       })
     );
@@ -289,18 +302,18 @@ export default class NoteAssemblerPlugin extends Plugin {
     // Status bar indicator for project files
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.addClass("cairn-status-bar");
-    this.statusBarEl.style.display = "none";
+    this.statusBarEl.hide();
     this.statusBarEl.onClickEvent(() => {
       const activeFile = this.app.workspace.getActiveFile();
       if (activeFile) {
         const project = this.findProjectForFile(activeFile.path);
         if (project && project.id !== this.data.activeProjectId) {
           this.data.activeProjectId = project.id;
-          this.savePluginData();
+          void this.savePluginData();
           this.refreshView();
         }
       }
-      this.activateView();
+      void this.activateView();
     });
 
     // Tag editor with CSS class when viewing any project file
@@ -320,7 +333,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     // Restore sidebar + heading class once workspace is ready
     this.app.workspace.onLayoutReady(() => {
       if (this.activeProjects().length > 0) {
-        this.activateView();
+        void this.activateView();
         // Also open the active project file if it isn't already open
         const project = this.getActiveProject();
         if (project) {
@@ -328,17 +341,17 @@ export default class NoteAssemblerPlugin extends Plugin {
           if (pFile instanceof TFile) {
             const openLeaves = this.app.workspace.getLeavesOfType("markdown");
             const alreadyOpen = openLeaves.some((leaf) => {
-              const v = leaf.view as any;
-              return v?.file?.path === pFile.path;
+              const v = leaf.view;
+              return v instanceof MarkdownView && v.file?.path === pFile.path;
             });
             if (!alreadyOpen) {
               const leaf = this.app.workspace.getLeaf("tab");
-              leaf.openFile(pFile);
+              void leaf.openFile(pFile);
             }
           }
         }
       }
-      setTimeout(() => {
+      window.setTimeout(() => {
         this.updateProjectFileClass();
         this.updateStatusBar();
       }, 100);
@@ -369,11 +382,11 @@ export default class NoteAssemblerPlugin extends Plugin {
     };
     this.data.projects.push(project);
     this.data.activeProjectId = project.id;
-    this.savePluginData();
+    void this.savePluginData();
     this.updateProjectFileClass();
     this.updateStatusBar();
     this.refreshView();
-    this.activateView();
+    void this.activateView();
     new Notice(`Tracking "${file.basename}" as a Throughline project`);
   }
 
@@ -388,7 +401,8 @@ export default class NoteAssemblerPlugin extends Plugin {
     const projectPaths = new Set(this.activeProjects().map((p) => p.filePath));
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const file = (leaf.view as any)?.file;
+      const view = leaf.view;
+      const file = view instanceof MarkdownView ? view.file : null;
       if (!file) continue;
 
       const isProject = projectPaths.has(file.path);
@@ -406,7 +420,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         if (actions && !actions.querySelector(".cairn-header-icon")) {
           const btn = actions.createEl("a", {
             cls: "view-action cairn-header-icon",
-            attr: { "aria-label": "Open in Throughline" },
+            attr: { "aria-label": "Open in essay sidebar" },
           });
           setIcon(btn, "layers");
           btn.addEventListener("click", (e) => {
@@ -414,10 +428,10 @@ export default class NoteAssemblerPlugin extends Plugin {
             const project = this.findProjectForFile(file.path);
             if (project && project.id !== this.data.activeProjectId) {
               this.data.activeProjectId = project.id;
-              this.savePluginData();
+              void this.savePluginData();
               this.refreshView();
             }
-            this.activateView();
+            void this.activateView();
           });
         }
       }
@@ -428,7 +442,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     if (!this.statusBarEl) return;
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) {
-      this.statusBarEl.style.display = "none";
+      this.statusBarEl.hide();
       return;
     }
     const project = this.findProjectForFile(activeFile.path);
@@ -437,9 +451,9 @@ export default class NoteAssemblerPlugin extends Plugin {
       const icon = this.statusBarEl.createSpan({ cls: "cairn-status-icon" });
       setIcon(icon, "layers");
       this.statusBarEl.createSpan({ text: project.name });
-      this.statusBarEl.style.display = "";
+      this.statusBarEl.show();
     } else {
-      this.statusBarEl.style.display = "none";
+      this.statusBarEl.hide();
     }
   }
 
@@ -452,7 +466,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       leaf = rightLeaf;
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
-    workspace.revealLeaf(leaf);
+    void workspace.revealLeaf(leaf);
   }
 
   getActiveProject(): Project | null {
@@ -485,7 +499,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     for (const leaf of leaves) {
       if (leaf.view instanceof AssemblerView) {
-        (leaf.view as AssemblerView).previewSourceIndex = newIndex;
+        leaf.view.previewSourceIndex = newIndex;
       }
     }
     this.refreshView();
@@ -760,8 +774,8 @@ export default class NoteAssemblerPlugin extends Plugin {
   async getFileContent(file: TFile): Promise<string> {
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const view = leaf.view as any;
-      if (view?.file?.path === file.path && view?.editor) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === file.path) {
         return view.editor.getValue();
       }
     }
@@ -773,8 +787,8 @@ export default class NoteAssemblerPlugin extends Plugin {
   async setFileContent(file: TFile, content: string) {
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const view = leaf.view as any;
-      if (view?.file?.path === file.path && view?.editor) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === file.path) {
         view.editor.setValue(content);
         return;
       }
@@ -785,8 +799,8 @@ export default class NoteAssemblerPlugin extends Plugin {
   scrollEditorToLine(file: TFile, line: number) {
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const view = leaf.view as any;
-      if (view?.file?.path === file.path && view?.editor) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === file.path) {
         view.editor.setCursor({ line, ch: 0 });
         view.editor.scrollIntoView(
           { from: { line, ch: 0 }, to: { line: line + 2, ch: 0 } },
@@ -890,8 +904,8 @@ export default class NoteAssemblerPlugin extends Plugin {
     if (newSec) {
       const leaves = this.app.workspace.getLeavesOfType("markdown");
       for (const leaf of leaves) {
-        const view = leaf.view as any;
-        if (view?.file?.path === projectFile.path && view?.editor) {
+        const view = leaf.view;
+        if (view instanceof MarkdownView && view.file?.path === projectFile.path) {
           view.editor.setCursor({ line: newSec.startLine, ch: 0 });
           view.editor.scrollIntoView(
             {
@@ -900,7 +914,7 @@ export default class NoteAssemblerPlugin extends Plugin {
             },
             true
           );
-          this.app.workspace.revealLeaf(leaf);
+          void this.app.workspace.revealLeaf(leaf);
           break;
         }
       }
@@ -1172,7 +1186,7 @@ export default class NoteAssemblerPlugin extends Plugin {
       this.app,
       safeName,
       project.sourceFolder || "",
-      async (folder) => {
+      (folder) => void (async () => {
         const targetPath = folder
           ? `${folder}/${safeName}.md`
           : `${safeName}.md`;
@@ -1204,7 +1218,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         }
 
         new Notice(`Extracted "${section.heading}" to ${targetPath}`);
-      }
+      })()
     ).open();
   }
 
@@ -1352,7 +1366,7 @@ To turn a passage into a note in your own words first, use the **Distill** plugi
     new ExtractSelectionModal(
       this.app,
       defaultFolder,
-      async (noteName, folder) => {
+      (noteName, folder) => void (async () => {
         const safeName = sanitizeFilename(noteName);
         if (!safeName) {
           new Notice("Note name cannot be empty");
@@ -1399,7 +1413,7 @@ To turn a passage into a note in your own words first, use the **Distill** plugi
         }
 
         new Notice(`Created "${safeName}.md" from selection`);
-      }
+      })()
     ).open();
   }
 
@@ -1473,7 +1487,7 @@ To turn a passage into a note in your own words first, use the **Distill** plugi
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     for (const leaf of leaves) {
       if (leaf.view instanceof AssemblerView) {
-        (leaf.view as AssemblerView).debouncedRender();
+        leaf.view.debouncedRender();
       }
     }
   }
@@ -1482,13 +1496,13 @@ To turn a passage into a note in your own words first, use the **Distill** plugi
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     for (const leaf of leaves) {
       if (leaf.view instanceof AssemblerView) {
-        (leaf.view as AssemblerView).activeTab = tab;
+        leaf.view.activeTab = tab;
       }
     }
   }
 
   async loadPluginData() {
-    const saved = await this.loadData();
+    const saved = (await this.loadData()) as Partial<NoteAssemblerData> | null;
     this.data = Object.assign({}, DEFAULT_DATA, saved);
     this.data.settings = Object.assign({}, DEFAULT_SETTINGS, saved?.settings);
     // Ensure sources array exists on all projects (backwards compat)
@@ -1552,7 +1566,7 @@ class AssemblerView extends ItemView {
   }
 
   async onOpen() {
-    this.renderContent();
+    void this.renderContent();
   }
 
   async renderContent() {
@@ -1580,7 +1594,7 @@ class AssemblerView extends ItemView {
 
       const newBtn = landing.createEl("button", {
         cls: "na-btn na-btn-primary na-landing-btn",
-        text: "New Essay",
+        text: "New essay",
       });
       newBtn.addEventListener("click", () => {
         this.openNewProjectModal();
@@ -1588,7 +1602,7 @@ class AssemblerView extends ItemView {
 
       const trackBtn = landing.createEl("button", {
         cls: "na-btn na-landing-btn",
-        text: "Track Existing Note",
+        text: "Track existing note",
       });
       trackBtn.addEventListener("click", () => {
         this.openExistingProjectPicker();
@@ -1604,12 +1618,12 @@ class AssemblerView extends ItemView {
         for (const p of projects) {
           const row = listDiv.createDiv({ cls: "na-landing-item" });
           row.createSpan({ cls: "na-landing-item-name", text: p.name });
-          row.addEventListener("click", async () => {
+          row.addEventListener("click", () => void (async () => {
             this.plugin.data.activeProjectId = p.id;
             await this.plugin.savePluginData();
             this.plugin.updateProjectFileClass();
-            this.renderContent();
-          });
+            void this.renderContent();
+          })());
         }
       }
       return;
@@ -1633,33 +1647,33 @@ class AssemblerView extends ItemView {
       }
     }
 
-    select.addEventListener("change", async () => {
+    select.addEventListener("change", () => void (async () => {
       this.plugin.data.activeProjectId = select.value || null;
       this.previewSourceIndex = null;
       await this.plugin.savePluginData();
-      this.renderContent();
+      void this.renderContent();
       this.plugin.updateProjectFileClass();
-    });
+    })());
 
     const openBtn = projectRow.createEl("button", {
       cls: "na-btn na-btn-primary",
-      text: "Open Note",
+      text: "Open note",
     });
-    openBtn.addEventListener("click", async () => {
+    openBtn.addEventListener("click", () => void (async () => {
       const pFile = this.app.vault.getAbstractFileByPath(project.filePath);
       if (!(pFile instanceof TFile)) return;
       const openLeaves = this.app.workspace.getLeavesOfType("markdown");
       const existing = openLeaves.find((leaf) => {
-        const v = leaf.view as any;
-        return v?.file?.path === pFile.path;
+        const v = leaf.view;
+        return v instanceof MarkdownView && v.file?.path === pFile.path;
       });
       if (existing) {
-        this.app.workspace.revealLeaf(existing);
+        void this.app.workspace.revealLeaf(existing);
       } else {
         const leaf = this.app.workspace.getLeaf("tab");
         await leaf.openFile(pFile);
       }
-    });
+    })());
 
     const projectFile = this.app.vault.getAbstractFileByPath(project.filePath);
     if (!(projectFile instanceof TFile)) {
@@ -1668,13 +1682,11 @@ class AssemblerView extends ItemView {
         text: `File "${project.filePath}" not found.`,
       });
       const archiveBtn = container.createEl("button", {
-        cls: "na-btn na-btn-primary",
+        cls: "na-btn na-btn-primary na-btn-full",
         text: "Archive this project",
       });
-      archiveBtn.style.width = "100%";
-      archiveBtn.style.marginTop = "8px";
       archiveBtn.addEventListener("click", () => {
-        this.plugin.untrackProject(project.id);
+        void this.plugin.untrackProject(project.id);
       });
       return;
     }
@@ -1689,7 +1701,7 @@ class AssemblerView extends ItemView {
     });
     sourcesTab.addEventListener("click", () => {
       this.activeTab = "sources";
-      this.renderContent();
+      void this.renderContent();
     });
 
     const outlineTab = tabBar.createEl("button", {
@@ -1699,7 +1711,7 @@ class AssemblerView extends ItemView {
     });
     outlineTab.addEventListener("click", () => {
       this.activeTab = "outline";
-      this.renderContent();
+      void this.renderContent();
     });
 
     // ── Active tab content ──
@@ -1713,8 +1725,9 @@ class AssemblerView extends ItemView {
     const footer = container.createDiv({ cls: "na-footer" });
     const newBtn = footer.createEl("button", {
       cls: "na-new-essay-link",
-      text: "+ New Essay",
+      text: "New essay",
     });
+    newBtn.prepend("+ ");
     newBtn.addEventListener("click", () => {
       this.openNewProjectModal();
     });
@@ -1722,7 +1735,7 @@ class AssemblerView extends ItemView {
   }
 
   private openNewProjectModal() {
-    const modal = new NewProjectModal(this.app, async (name) => {
+    const modal = new NewProjectModal(this.app, (name) => void (async () => {
       modal.close();
       await sleep(100);
       const folder = this.plugin.data.settings.essayFolder;
@@ -1752,14 +1765,14 @@ class AssemblerView extends ItemView {
       };
       this.plugin.data.projects.push(project);
       this.plugin.data.activeProjectId = project.id;
-      this.plugin.savePluginData();
-      this.renderContent();
-    });
+      void this.plugin.savePluginData();
+      void this.renderContent();
+    })());
     modal.open();
   }
 
   private openExistingProjectPicker() {
-    const modal = new TrackFileModal(this.app, async (file) => {
+    const modal = new TrackFileModal(this.app, (file) => void (async () => {
       modal.close();
       const project: Project = {
         id: generateId(),
@@ -1772,8 +1785,8 @@ class AssemblerView extends ItemView {
       this.plugin.data.activeProjectId = project.id;
       await this.plugin.savePluginData();
       this.plugin.updateProjectFileClass();
-      this.renderContent();
-    });
+      void this.renderContent();
+    })());
     modal.open();
   }
 
@@ -1787,9 +1800,9 @@ class AssemblerView extends ItemView {
     setIcon(btn, this.plugin.data.settings.hideHeadings ? "eye-off" : "eye");
     btn.addEventListener("click", () => {
       this.plugin.data.settings.hideHeadings = !this.plugin.data.settings.hideHeadings;
-      this.plugin.savePluginData();
+      void this.plugin.savePluginData();
       this.plugin.updateProjectFileClass();
-      this.renderContent();
+      void this.renderContent();
     });
   }
 
@@ -1824,21 +1837,21 @@ class AssemblerView extends ItemView {
     list.addEventListener("dragleave", () => {
       list.removeClass("na-drop-target-active");
     });
-    list.addEventListener("drop", async (e) => {
+    list.addEventListener("drop", (e) => void (async () => {
       if (this.draggedIndex !== null) return;
       e.preventDefault();
       list.removeClass("na-drop-target-active");
-      const dragData = (this.app as any).dragManager?.draggable;
+      const dragData = (this.app as AppWithDragManager).dragManager?.draggable;
       if (dragData?.type === "file" && dragData.file instanceof TFile) {
         await this.plugin.addSourceToQueue(project, dragData.file);
       } else if (dragData?.type === "files") {
-        for (const file of dragData.files) {
+        for (const file of dragData.files ?? []) {
           if (file instanceof TFile) {
             await this.plugin.addSourceToQueue(project, file);
           }
         }
       }
-    });
+    })());
 
     if (project.sources.length === 0) {
       list.createDiv({
@@ -1880,14 +1893,14 @@ class AssemblerView extends ItemView {
         statusIcon.addEventListener("click", (e) => {
           e.stopPropagation();
           const newStatus = source.status === "done" ? "unread" : "done";
-          this.plugin.markSourceStatus(project, i, newStatus);
+          void this.plugin.markSourceStatus(project, i, newStatus);
         });
 
         // Title (click to toggle preview)
         const title = card.createSpan({
           cls: "na-source-title",
           text:
-            sourceFile?.basename ||
+            (sourceFile instanceof TFile ? sourceFile.basename : "") ||
             source.notePath.split("/").pop() ||
             "Unknown",
         });
@@ -1898,7 +1911,7 @@ class AssemblerView extends ItemView {
           } else {
             this.previewSourceIndex = idx;
           }
-          this.renderContent();
+          void this.renderContent();
         });
 
         // Remove button
@@ -1914,7 +1927,7 @@ class AssemblerView extends ItemView {
           ) {
             this.previewSourceIndex--;
           }
-          this.plugin.removeSourceFromQueue(project, idx);
+          void this.plugin.removeSourceFromQueue(project, idx);
         });
       }
     }
@@ -1940,10 +1953,10 @@ class AssemblerView extends ItemView {
           cls: "na-preview-title",
           text: sourceFile.basename,
         });
-        previewTitle.addEventListener("click", async () => {
+        previewTitle.addEventListener("click", () => void (async () => {
           const leaf = this.app.workspace.getLeaf("tab");
           await leaf.openFile(sourceFile);
-        });
+        })());
 
         // Preview body (selectable text)
         let previewContent = await this.app.vault.read(sourceFile);
@@ -1973,10 +1986,11 @@ class AssemblerView extends ItemView {
         });
         const addAsIsBtn = wholeRow.createEl("button", {
           cls: "na-btn",
-          text: "\u2192 Add whole note to essay",
+          text: "Add whole note to essay",
         });
+        addAsIsBtn.prepend("\u2192 ");
         addAsIsBtn.addEventListener("click", () => {
-          this.plugin.addSourceAsIs(project, capturedSource);
+          void this.plugin.addSourceAsIs(project, capturedSource);
         });
 
         // Row 2: selection actions (disabled until text selected)
@@ -1989,13 +2003,14 @@ class AssemblerView extends ItemView {
         });
         const quoteSelBtn = selRow.createEl("button", {
           cls: "na-btn",
-          text: "\u2192 Quote to essay",
+          text: "Quote to essay",
         });
+        quoteSelBtn.prepend("\u2192 ");
         quoteSelBtn.disabled = true;
         quoteSelBtn.addEventListener("click", () => {
           const sel = window.getSelection()?.toString()?.trim();
           if (sel) {
-            this.plugin.quoteSelectionFromSource(
+            void this.plugin.quoteSelectionFromSource(
               project,
               capturedSource,
               sel
@@ -2018,8 +2033,9 @@ class AssemblerView extends ItemView {
     // Add Source button
     const addSourceBtn = section.createEl("button", {
       cls: "na-btn na-add-source-btn",
-      text: "+ Add Source",
+      text: "Add source",
     });
+    addSourceBtn.prepend("+ ");
     addSourceBtn.addEventListener("click", () => {
       const existingPaths = new Set(project.sources.map((s) => s.notePath));
       new SourceSuggestModal(
@@ -2028,7 +2044,7 @@ class AssemblerView extends ItemView {
         existingPaths,
         this.plugin,
         (file) => {
-          this.plugin.addSourceToQueue(project, file);
+          void this.plugin.addSourceToQueue(project, file);
         }
       ).open();
     });
@@ -2054,22 +2070,22 @@ class AssemblerView extends ItemView {
 
     const blankBtn = actions.createEl("button", {
       cls: "na-btn",
-      text: "Add Section",
+      text: "Add section",
     });
     blankBtn.addEventListener("click", () => {
-      this.plugin.addBlankSection(project);
+      void this.plugin.addBlankSection(project);
     });
 
     const exportBtn = actions.createEl("button", {
       cls: "na-btn",
-      text: "Export Final Essay",
+      text: "Export final essay",
     });
     exportBtn.setAttribute(
       "title",
       "Export final essay to clipboard (wikilinks and [[source|*]] stripped)"
     );
     exportBtn.addEventListener("click", () => {
-      this.plugin.copyCleanExport(project);
+      void this.plugin.copyCleanExport(project);
     });
 
     // Read content and parse blocks
@@ -2180,9 +2196,9 @@ class AssemblerView extends ItemView {
           "title",
           `Add "${file.basename}" to source queue`
         );
-        addBtn.addEventListener("click", async () => {
+        addBtn.addEventListener("click", () => void (async () => {
           await this.plugin.addSourceToQueue(project, file);
-        });
+        })());
       }
     }
   }
@@ -2254,25 +2270,25 @@ class AssemblerView extends ItemView {
     setIcon(upBtn, "chevron-up");
     upBtn.setAttribute("title", "Move up");
     if (index === 0) upBtn.addClass("na-move-disabled");
-    upBtn.addEventListener("click", async (e) => {
+    upBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       if (index > 0) await this.plugin.moveBlock(project, index, index - 1);
-    });
+    })());
     const downBtn = moveGroup.createSpan({ cls: "na-move" });
     setIcon(downBtn, "chevron-down");
     downBtn.setAttribute("title", "Move down");
     if (index === blocks.length - 1) downBtn.addClass("na-move-disabled");
-    downBtn.addEventListener("click", async (e) => {
+    downBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       if (index < blocks.length - 1) await this.plugin.moveBlock(project, index, index + 1);
-    });
+    })());
 
     // Extract button — heading blocks only
     if (isHeading) {
       const extractBtn = card.createSpan({ cls: "na-extract" });
       setIcon(extractBtn, "arrow-up-right");
       extractBtn.setAttribute("title", "Extract section to standalone note");
-      extractBtn.addEventListener("click", async (e) => {
+      extractBtn.addEventListener("click", (e) => void (async () => {
         e.stopPropagation();
         const allSections = this.plugin.parseSections(content);
         const draggable = allSections.filter((s) => !s.pinned);
@@ -2280,16 +2296,16 @@ class AssemblerView extends ItemView {
         if (sectionIdx >= 0) {
           await this.plugin.extractSection(project, sectionIdx);
         }
-      });
+      })());
     }
 
     // Remove button (all blocks)
     const removeBtn = card.createSpan({ cls: "na-remove" });
     setIcon(removeBtn, "x");
-    removeBtn.addEventListener("click", async (e) => {
+    removeBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       await this.plugin.removeBlock(project, index);
-    });
+    })());
 
     // ── Drag events ──
     card.addEventListener("dragstart", (e) => {
@@ -2346,7 +2362,7 @@ class AssemblerView extends ItemView {
       } else {
         this.collapsedHeadings.add(headingText);
       }
-      this.renderContent();
+      void this.renderContent();
     });
 
     // Grip handle
@@ -2376,7 +2392,7 @@ class AssemblerView extends ItemView {
     setIcon(upBtn, "chevron-up");
     upBtn.setAttribute("title", isCollapsed ? "Move group up" : "Move up");
     if (index === 0) upBtn.addClass("na-move-disabled");
-    upBtn.addEventListener("click", async (e) => {
+    upBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       if (index === 0) return;
       if (isCollapsed && allGroupIndices.length > 1) {
@@ -2385,13 +2401,13 @@ class AssemblerView extends ItemView {
       } else {
         await this.plugin.moveBlock(project, index, index - 1);
       }
-    });
+    })());
     const downBtn = moveGroupEl.createSpan({ cls: "na-move" });
     setIcon(downBtn, "chevron-down");
     downBtn.setAttribute("title", isCollapsed ? "Move group down" : "Move down");
     const lastIdx = allGroupIndices[allGroupIndices.length - 1];
     if (lastIdx === blocks.length - 1) downBtn.addClass("na-move-disabled");
-    downBtn.addEventListener("click", async (e) => {
+    downBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       if (lastIdx >= blocks.length - 1) return;
       if (isCollapsed && allGroupIndices.length > 1) {
@@ -2402,13 +2418,13 @@ class AssemblerView extends ItemView {
           await this.plugin.moveBlock(project, index, index + 1);
         }
       }
-    });
+    })());
 
     // Extract button
     const extractBtn = card.createSpan({ cls: "na-extract" });
     setIcon(extractBtn, "arrow-up-right");
     extractBtn.setAttribute("title", "Extract section to standalone note");
-    extractBtn.addEventListener("click", async (e) => {
+    extractBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       const allSections = this.plugin.parseSections(content);
       const draggable = allSections.filter((s) => !s.pinned);
@@ -2416,15 +2432,15 @@ class AssemblerView extends ItemView {
       if (sectionIdx >= 0) {
         await this.plugin.extractSection(project, sectionIdx);
       }
-    });
+    })());
 
     // Remove button
     const removeBtn = card.createSpan({ cls: "na-remove" });
     setIcon(removeBtn, "x");
-    removeBtn.addEventListener("click", async (e) => {
+    removeBtn.addEventListener("click", (e) => void (async () => {
       e.stopPropagation();
       await this.plugin.removeBlock(project, index);
-    });
+    })());
 
     // ── Drag events (group-aware when collapsed) ──
     card.addEventListener("dragstart", (e) => {
@@ -2489,7 +2505,7 @@ class AssemblerView extends ItemView {
       card.removeClass("na-drop-below");
     });
 
-    card.addEventListener("drop", async (e) => {
+    card.addEventListener("drop", (e) => void (async () => {
       e.preventDefault();
       const rect = card.getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
@@ -2517,14 +2533,14 @@ class AssemblerView extends ItemView {
         this.draggedGroupIndices = null;
         await this.plugin.moveBlock(project, fromIdx, toIdx);
       }
-    });
+    })());
   }
 
   private scrollToSection(project: Project, section: Section) {
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const view = leaf.view as any;
-      if (view?.file?.path === project.filePath && view?.editor) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === project.filePath) {
         view.editor.setCursor({ line: section.startLine, ch: 0 });
         view.editor.scrollIntoView(
           {
@@ -2536,7 +2552,7 @@ class AssemblerView extends ItemView {
           },
           true
         );
-        this.app.workspace.revealLeaf(leaf);
+        void this.app.workspace.revealLeaf(leaf);
         break;
       }
     }
@@ -2545,8 +2561,8 @@ class AssemblerView extends ItemView {
   private scrollToBlock(project: Project, block: ContentBlock) {
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      const view = leaf.view as any;
-      if (view?.file?.path === project.filePath && view?.editor) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === project.filePath) {
         view.editor.setCursor({ line: block.startLine, ch: 0 });
         view.editor.scrollIntoView(
           {
@@ -2558,7 +2574,7 @@ class AssemblerView extends ItemView {
           },
           true
         );
-        this.app.workspace.revealLeaf(leaf);
+        void this.app.workspace.revealLeaf(leaf);
         break;
       }
     }
@@ -2591,7 +2607,7 @@ class SourceSuggestModal extends FuzzySuggestModal<TFile> {
   }
 
   onOpen() {
-    super.onOpen();
+    void super.onOpen();
     const folderRow = this.modalEl.createDiv({ cls: "na-modal-folder-row" });
     this.modalEl.prepend(folderRow);
 
@@ -2603,7 +2619,7 @@ class SourceSuggestModal extends FuzzySuggestModal<TFile> {
 
     const folders: string[] = [];
     this.app.vault.getAllLoadedFiles().forEach((f) => {
-      if (f.children !== undefined && f.path !== "/") {
+      if (f instanceof TFolder && f.path !== "/") {
         folders.push(f.path);
       }
     });
@@ -2616,12 +2632,12 @@ class SourceSuggestModal extends FuzzySuggestModal<TFile> {
       if (folder === this.activeFolder) opt.selected = true;
     }
 
-    folderSelect.addEventListener("change", async () => {
+    folderSelect.addEventListener("change", () => void (async () => {
       this.activeFolder = folderSelect.value;
       this.project.sourceFolder = folderSelect.value;
       await this.plugin.savePluginData();
-      (this as any).updateSuggestions();
-    });
+      (this as unknown as { updateSuggestions: () => void }).updateSuggestions();
+    })());
   }
 
   getItems(): TFile[] {
@@ -2630,84 +2646,6 @@ class SourceSuggestModal extends FuzzySuggestModal<TFile> {
       if (f.path === this.project.filePath) return false;
       if (folder && !f.path.startsWith(folder + "/")) return false;
       if (this.existingPaths.has(f.path)) return false;
-      return true;
-    });
-  }
-
-  getItemText(item: TFile): string {
-    return item.basename;
-  }
-
-  onChooseItem(item: TFile): void {
-    this.onChoose(item);
-  }
-}
-
-// ── Note Suggest Modal (for Add Note) ──
-
-class NoteSuggestModal extends FuzzySuggestModal<TFile> {
-  project: Project;
-  existingHeadings: Set<string>;
-  onChoose: (file: TFile) => void;
-  private activeFolder: string;
-  private plugin: NoteAssemblerPlugin;
-
-  constructor(
-    app: App,
-    project: Project,
-    existingHeadings: Set<string>,
-    plugin: NoteAssemblerPlugin,
-    onChoose: (file: TFile) => void
-  ) {
-    super(app);
-    this.project = project;
-    this.existingHeadings = existingHeadings;
-    this.plugin = plugin;
-    this.onChoose = onChoose;
-    this.activeFolder = project.sourceFolder || "";
-    this.setPlaceholder("Search for a note to add...");
-  }
-
-  onOpen() {
-    super.onOpen();
-    const folderRow = this.modalEl.createDiv({ cls: "na-modal-folder-row" });
-    this.modalEl.prepend(folderRow);
-
-    folderRow.createSpan({ cls: "na-folder-label", text: "Main Source:" });
-    const folderSelect = folderRow.createEl("select", {
-      cls: "na-folder-select",
-    });
-    folderSelect.createEl("option", { text: "All folders", value: "" });
-
-    const folders: string[] = [];
-    this.app.vault.getAllLoadedFiles().forEach((f) => {
-      if (f.children !== undefined && f.path !== "/") {
-        folders.push(f.path);
-      }
-    });
-    folders.sort();
-    for (const folder of folders) {
-      const opt = folderSelect.createEl("option", {
-        text: folder,
-        value: folder,
-      });
-      if (folder === this.activeFolder) opt.selected = true;
-    }
-
-    folderSelect.addEventListener("change", async () => {
-      this.activeFolder = folderSelect.value;
-      this.project.sourceFolder = folderSelect.value;
-      await this.plugin.savePluginData();
-      (this as any).updateSuggestions();
-    });
-  }
-
-  getItems(): TFile[] {
-    const folder = this.activeFolder;
-    return this.app.vault.getMarkdownFiles().filter((f) => {
-      if (f.path === this.project.filePath) return false;
-      if (folder && !f.path.startsWith(folder + "/")) return false;
-      if (this.existingHeadings.has(f.basename)) return false;
       return true;
     });
   }
@@ -2752,7 +2690,7 @@ class ThroughlineHelpModal extends Modal {
     const { contentEl } = this;
     contentEl.addClass("cairn-help-modal");
 
-    contentEl.createEl("h2", { text: "Welcome to Throughline" });
+    contentEl.createEl("h2", { text: "Welcome" });
     contentEl.createEl("p", {
       text: "Throughline helps you compose essays from your notes. Think of it as a workbench — you gather source material, pull in the pieces you need, and arrange them into something new.",
     });
@@ -2761,10 +2699,12 @@ class ThroughlineHelpModal extends Modal {
     idea.createEl("h3", { text: "The idea" });
     const ideaP = idea.createEl("p");
     ideaP.appendText("If you keep ");
-    ideaP.createEl("a", {
-      text: "atomic notes",
+    // Link text is mid-sentence, so it's appended rather than passed as `text`
+    const atomicLink = ideaP.createEl("a", {
       href: "https://notes.andymatuschak.org/Evergreen_notes_should_be_atomic",
-    }).setAttr("target", "_blank");
+    });
+    atomicLink.appendText("atomic notes");
+    atomicLink.setAttr("target", "_blank");
     ideaP.appendText(" — small notes about single ideas — Throughline gives you a way to weave them into longer pieces. It's inspired by the ");
     ideaP.createEl("a", {
       text: "Zettelkasten",
@@ -2852,7 +2792,7 @@ class NewProjectModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h3", { text: "New Essay" });
+    contentEl.createEl("h3", { text: "New essay" });
 
     const input = contentEl.createEl("input", {
       type: "text",
@@ -2909,7 +2849,7 @@ class ExtractModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Extract to Note" });
+    contentEl.createEl("h3", { text: "Extract to note" });
     contentEl.createEl("p", {
       text: `${this.noteName}.md`,
       cls: "na-extract-filename",
@@ -2922,7 +2862,7 @@ class ExtractModal extends Modal {
 
     const folders: string[] = [];
     this.app.vault.getAllLoadedFiles().forEach((f) => {
-      if (f.children !== undefined && f.path !== "/") {
+      if (f instanceof TFolder && f.path !== "/") {
         folders.push(f.path);
       }
     });
@@ -2969,7 +2909,7 @@ class ExtractSelectionModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Extract Selection to Note" });
+    contentEl.createEl("h3", { text: "Extract selection to note" });
 
     const input = contentEl.createEl("input", {
       type: "text",
@@ -2985,7 +2925,7 @@ class ExtractSelectionModal extends Modal {
 
     const folders: string[] = [];
     this.app.vault.getAllLoadedFiles().forEach((f) => {
-      if (f.children !== undefined && f.path !== "/") {
+      if (f instanceof TFolder && f.path !== "/") {
         folders.push(f.path);
       }
     });
@@ -3039,8 +2979,6 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Throughline" });
-
     new Setting(containerEl)
       .setName("Essay folder")
       .setDesc("Where new essays are created. Leave blank for vault root.")
@@ -3048,7 +2986,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
         dropdown.addOption("", "Vault root");
         const folders: string[] = [];
         this.app.vault.getAllLoadedFiles().forEach((f) => {
-          if (f.children !== undefined && f.path !== "/") {
+          if (f instanceof TFolder && f.path !== "/") {
             folders.push(f.path);
           }
         });
@@ -3072,7 +3010,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Pinned section name")
       .setDesc(
-        "The heading that stays pinned at the bottom (e.g. Sources, Bibliography, References)"
+        "The heading that stays pinned at the bottom (e.g. Sources, bibliography, references)"
       )
       .addText((text) =>
         text
@@ -3087,7 +3025,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Max related notes")
       .setDesc(
-        "Maximum number of suggestions shown in the Related Notes panel"
+        "Maximum number of suggestions shown in the related notes panel"
       )
       .addSlider((slider) =>
         slider
@@ -3123,7 +3061,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           });
       });
 
-    containerEl.createEl("h3", { text: "Export" });
+    new Setting(containerEl).setName("Export").setHeading();
 
     new Setting(containerEl)
       .setName("Include headings in export")
@@ -3139,7 +3077,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Tracked Projects" });
+    new Setting(containerEl).setName("Tracked projects").setHeading();
 
     const active = [...this.plugin.activeProjects()].sort(
       (a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)
@@ -3162,13 +3100,13 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
             btn
               .setButtonText("Archive")
               .onClick(async () => {
-                this.plugin.untrackProject(p.id);
+                void this.plugin.untrackProject(p.id);
                 this.display();
               })
           );
       }
       if (archived.length > 0) {
-        containerEl.createEl("h4", { text: "Archived", cls: "setting-item-description" });
+        new Setting(containerEl).setName("Archived").setHeading();
         for (const p of archived) {
           new Setting(containerEl)
             .setName(p.name)
@@ -3177,7 +3115,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
               btn
                 .setButtonText("Unarchive")
                 .onClick(async () => {
-                  this.plugin.unarchiveProject(p.id);
+                  void this.plugin.unarchiveProject(p.id);
                   this.display();
                 })
             );
@@ -3185,19 +3123,19 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
       }
     }
 
-    containerEl.createEl("h3", { text: "Support" });
+    new Setting(containerEl).setName("Support").setHeading();
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
     donateDesc.createSpan({
       text: "Throughline is free and open source. If it helps your writing, consider leaving a tip.",
     });
     donateDesc.createEl("br");
     const link = donateDesc.createEl("a", {
-      text: "Tip on Venmo",
+      text: "Leave a tip",
       href: "https://venmo.com/KiKiBouba",
     });
     link.setAttr("target", "_blank");
 
-    containerEl.createEl("h3", { text: "About" });
+    new Setting(containerEl).setName("About").setHeading();
     const aboutDesc = containerEl.createDiv({ cls: "na-settings-about" });
     aboutDesc.createSpan({
       text: "Built by Maggie McGuire. ",
@@ -3213,7 +3151,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
 // ── Helpers ─────────────────────────────────────────────────
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function generateId(): string {
@@ -3224,33 +3162,6 @@ function generateId(): string {
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.substring(0, max - 1) + "\u2026" : str;
-}
-
-function confirmModal(app: App, title: string, message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const modal = new Modal(app);
-    modal.titleEl.setText(title);
-    modal.contentEl.createEl("p", { text: message });
-
-    const btnRow = modal.contentEl.createDiv({ cls: "na-modal-buttons" });
-
-    const cancelBtn = btnRow.createEl("button", { cls: "na-btn", text: "Cancel" });
-    cancelBtn.addEventListener("click", () => {
-      modal.close();
-      resolve(false);
-    });
-
-    const confirmBtn = btnRow.createEl("button", {
-      cls: "na-btn na-btn-primary",
-      text: "Remove from Throughline",
-    });
-    confirmBtn.addEventListener("click", () => {
-      modal.close();
-      resolve(true);
-    });
-
-    modal.open();
-  });
 }
 
 function escapeRegex(str: string): string {
