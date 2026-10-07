@@ -1310,7 +1310,7 @@ From the source preview, you have two options:
 - **Quote selection** — select text, right-click → instant blockquote with [[source|*]] attribution
 - **Add as-is** — dump the whole note as a blockquote (for already-distilled notes)
 
-To turn a passage into a note in your own words first, use the **Flint** plugin's Distill.
+To turn a passage into a note in your own words first, use the **Distill** plugin.
 
 ## What to do next
 
@@ -2816,8 +2816,8 @@ class ThroughlineHelpModal extends Modal {
     const tipList = tips.createEl("ul");
 
     const distillTip = tipList.createEl("li");
-    distillTip.createEl("strong", { text: "Distill lives in Flint: " });
-    distillTip.appendText("To turn a highlight into a note in your own words, install the Flint plugin. Its Distill can add the new note straight to an essay here.");
+    distillTip.createEl("strong", { text: "Distill is its own plugin: " });
+    distillTip.appendText("To turn a highlight into a note in your own words, install the Distill plugin. It can add the new note straight to an essay here.");
 
     const archiveTip = tipList.createEl("li");
     archiveTip.createEl("strong", { text: "Your notes are always yours: " });

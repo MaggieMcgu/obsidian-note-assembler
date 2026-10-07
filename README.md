@@ -16,10 +16,10 @@ Throughline takes a different approach: your essay is a normal markdown file. Th
 
 ## How It Works
 
-**The full loop:** Read → Highlight → **Distill** ([Flint](https://github.com/MaggieMcgu/obsidian-flint)) → Note → **Essay** (Throughline)
+**The full loop:** Read → Highlight → **Distill** ([Distill](https://github.com/MaggieMcgu/obsidian-distill)) → Note → **Essay** (Throughline)
 
 1. **Read & highlight** — Capture highlights with Readwise (or manually). They land in your vault as raw quotes
-2. **Distill** — With the companion plugin [Flint](https://github.com/MaggieMcgu/obsidian-flint), turn a highlight into an atomic note in your own words. Flint can drop it straight into a Throughline essay
+2. **Distill** — With the companion plugin [Distill](https://github.com/MaggieMcgu/obsidian-distill), turn a highlight into an atomic note in your own words. Distill can drop it straight into a Throughline essay
 3. **Create a project** — Give it an argumentative title (*"Growth is killing Moab's character"*)
 4. **Pull in notes** — Fuzzy search your vault, add notes as sections. Content is copied in, so you can freely edit it
 5. **Browse & collect** — Navigate source notes with the sidebar open. Right-click quotes to add them directly to your essay
@@ -54,7 +54,7 @@ Then hit **Open Essay** to return and write your connective tissue.
 These two actions are intentionally separate — they map to different stages of thinking:
 
 - **Collect** (Add Quote) — Grab raw material. You're reading, something resonates, you toss it into the essay as-is. Fast, low friction, no thinking required yet. The quote sits there with its attribution, waiting.
-- **Distill** (in Flint) — Do the thinking. You stop and ask "what does this actually mean to me?" The output is *your* idea, in *your* words, with the source attached as a reference. That's a permanent addition to your vault, not just your essay.
+- **Distill** (the Distill plugin) — Do the thinking. You stop and ask "what does this actually mean to me?" The output is *your* idea, in *your* words, with the source attached as a reference. That's a permanent addition to your vault, not just your essay.
 
 If you're familiar with Tiago Forte's CODE framework (Capture, Organize, Distill, Express), Throughline maps directly to it:
 
@@ -62,7 +62,7 @@ If you're familiar with Tiago Forte's CODE framework (Capture, Organize, Distill
 |------|-------|
 | **Capture** | Readwise highlights, reading, bookmarks |
 | **Organize** | Pull in notes, rearrange in sidebar |
-| **Distill** | Flint's Distill — turn quotes into your own ideas |
+| **Distill** | the Distill plugin — turn quotes into your own ideas |
 | **Express** | Write the essay, Export Final Essay |
 
 "Add Quote" lives between Capture and Organize — you're collecting raw material into your essay's structure. "Distill" is explicitly the D — the moment someone else's words become your knowledge. You can mix both freely in one session.
@@ -114,9 +114,9 @@ Search "Throughline" or "essay composer" in Settings > Community Plugins > Brows
 
 - **Start with a thesis.** The "New Essay" prompt nudges you toward an argumentative title. A clear claim makes it easier to decide which notes belong and which don't.
 - **Set a source folder** in the "Add Note" dialog to filter the fuzzy search to a specific area of your vault.
-- **Use the browsing workflow.** Keep the sidebar open while reading source notes. Add quotes (and distill highlights with Flint) as you go, then hit "Open Essay" to write.
+- **Use the browsing workflow.** Keep the sidebar open while reading source notes. Add quotes (and distill highlights with the Distill plugin) as you go, then hit "Open Essay" to write.
 - **Use Related Notes** to follow the trail. When you pull in a note that links to other notes, they'll appear as suggestions.
-- **Distill, don't just collect.** Flint's Distill asks "What does this mean to you?" — writing the idea in your own words is where the thinking happens.
+- **Distill, don't just collect.** the Distill plugin asks "What does this mean to you?" — writing the idea in your own words is where the thinking happens.
 - **Extract freely.** If you write three paragraphs that feel like their own idea, extract them. The best notes are born during writing, not before it.
 
 ## Built By
