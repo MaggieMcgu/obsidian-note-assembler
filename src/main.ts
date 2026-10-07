@@ -1231,15 +1231,23 @@ export default class NoteAssemblerPlugin extends Plugin {
     const content = await this.getFileContent(projectFile);
     const allSections = this.parseSections(content);
     const draggable = allSections.filter((s) => !s.pinned);
+    const lines = content.split("\n");
 
-    if (draggable.length === 0) {
+    // The opening (title + intro) sits above the first ## section; keep it.
+    const firstSectionLine = allSections.length ? allSections[0].startLine : lines.length;
+    const opening = lines
+      .slice(0, firstSectionLine)
+      .join("\n")
+      .replace(/^---\n[\s\S]*?\n---\n?/, "")
+      .trim();
+
+    if (draggable.length === 0 && !opening) {
       new Notice("Nothing to export");
       return;
     }
 
-    const lines = content.split("\n");
     const includeHeadings = this.data.settings.exportIncludeHeadings;
-    const parts: string[] = [];
+    const parts: string[] = opening ? [opening] : [];
     for (const section of draggable) {
       let sectionLines = lines.slice(section.startLine, section.endLine);
       if (!includeHeadings) {
@@ -1254,8 +1262,8 @@ export default class NoteAssemblerPlugin extends Plugin {
     // Strip remaining wikilinks: [[Target|Display]] → Display, [[Target]] → Target
     output = output.replace(/\[\[([^\]|]+)\|([^\]]+)]]/g, "$2");
     output = output.replace(/\[\[([^\]]+)]]/g, "$1");
-    // Clean up excess blank lines
-    output = output.replace(/\n{3,}/g, "\n\n").trim();
+    // Clean up excess blank lines and a trailing divider left before the pinned section
+    output = output.replace(/\n{3,}/g, "\n\n").trim().replace(/\n+-{3,}$/, "").trim();
 
     await navigator.clipboard.writeText(output);
     const wordCount = output
