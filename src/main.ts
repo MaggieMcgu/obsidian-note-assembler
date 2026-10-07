@@ -35,27 +35,19 @@ interface Project {
 interface NoteAssemblerSettings {
   pinnedSectionName: string;
   maxRelatedNotes: number;
-  distillDefaultFolder: string;
-  addBacklinkToSource: boolean;
   exportIncludeHeadings: boolean;
-  showProjectsInDistill: boolean;
   hideHeadings: boolean;
   newEssayTemplate: string;
   essayFolder: string;
-  strikeAfterDistill: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteAssemblerSettings = {
   pinnedSectionName: "Sources",
   maxRelatedNotes: 6,
-  distillDefaultFolder: "",
-  addBacklinkToSource: false,
   exportIncludeHeadings: true,
-  showProjectsInDistill: true,
   hideHeadings: false,
   newEssayTemplate: "",
-  essayFolder: "Cairn Essays",
-  strikeAfterDistill: true,
+  essayFolder: "Throughline Essays",
 };
 
 interface NoteAssemblerData {
@@ -108,7 +100,7 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE, (leaf) => new AssemblerView(leaf, this));
 
-    this.addRibbonIcon("layers", "Cairn — Essay Composer", () => {
+    this.addRibbonIcon("layers", "Throughline", () => {
       const file = this.app.workspace.getActiveFile();
       if (file && file.extension === "md" && !this.findProjectForFile(file.path)) {
         this.trackFileAsProject(file);
@@ -117,27 +109,9 @@ export default class NoteAssemblerPlugin extends Plugin {
       }
     });
 
-    this.addRibbonIcon("sparkles", "Distill highlight to note", () => {
-      const view = this.app.workspace.getActiveViewOfType(ItemView) as any;
-      const selection = view?.editor?.getSelection?.()?.trim();
-      if (!selection) {
-        const pdf = this.currentPdfSelection();
-        if (pdf) {
-          this.distillHighlight(pdf.text, pdf.file, pdf);
-          return;
-        }
-        new Notice("Select some text first, then click Distill");
-        return;
-      }
-      const file = view?.file;
-      if (file instanceof TFile) {
-        this.distillHighlight(selection, file);
-      }
-    });
-
     this.addCommand({
       id: "open-note-assembler",
-      name: "Open Cairn",
+      name: "Open Throughline",
       callback: () => this.activateView(),
     });
 
@@ -205,42 +179,9 @@ export default class NoteAssemblerPlugin extends Plugin {
       },
     });
 
-    // Remember the last text selected inside a PDF view, so Distill still
-    // works after a click (ribbon/hotkey) moves focus away from the PDF.
-    this.registerDomEvent(document, "selectionchange", () => {
-      const pdf = this.readPdfSelection();
-      if (pdf) this.lastPdfSelection = { ...pdf, at: Date.now() };
-    });
-
-    this.addCommand({
-      id: "distill-pdf-selection",
-      name: "Distill PDF selection to note",
-      checkCallback: (checking) => {
-        const pdf = this.currentPdfSelection();
-        if (!pdf) return false;
-        if (checking) return true;
-        this.distillHighlight(pdf.text, pdf.file, pdf);
-        return true;
-      },
-    });
-
-    this.addCommand({
-      id: "distill-highlight",
-      name: "Distill highlight to note",
-      editorCheckCallback: (checking, editor, view) => {
-        const selection = editor.getSelection();
-        if (!selection.trim()) return false;
-        if (checking) return true;
-        const file = view.file;
-        if (!file) return false;
-        this.distillHighlight(selection, file);
-        return true;
-      },
-    });
-
     this.addCommand({
       id: "track-current-note",
-      name: "Track current note as Cairn project",
+      name: "Track current note as Throughline project",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || file.extension !== "md") return false;
@@ -253,7 +194,7 @@ export default class NoteAssemblerPlugin extends Plugin {
 
     this.addCommand({
       id: "stop-tracking",
-      name: "Archive current Cairn project",
+      name: "Archive current Throughline project",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
@@ -283,14 +224,6 @@ export default class NoteAssemblerPlugin extends Plugin {
                 });
             });
           }
-          menu.addItem((item) => {
-            item
-              .setTitle("Distill highlight to note")
-              .setIcon("sparkles")
-              .onClick(() => {
-                this.distillHighlight(selection, view.file!);
-              });
-          });
         }
       })
     );
@@ -441,7 +374,7 @@ export default class NoteAssemblerPlugin extends Plugin {
     this.updateStatusBar();
     this.refreshView();
     this.activateView();
-    new Notice(`Tracking "${file.basename}" as a Cairn project`);
+    new Notice(`Tracking "${file.basename}" as a Throughline project`);
   }
 
   updateProjectFileClass() {
@@ -473,7 +406,7 @@ export default class NoteAssemblerPlugin extends Plugin {
         if (actions && !actions.querySelector(".cairn-header-icon")) {
           const btn = actions.createEl("a", {
             cls: "view-action cairn-header-icon",
-            attr: { "aria-label": "Open in Cairn" },
+            attr: { "aria-label": "Open in Throughline" },
           });
           setIcon(btn, "layers");
           btn.addEventListener("click", (e) => {
@@ -593,24 +526,6 @@ export default class NoteAssemblerPlugin extends Plugin {
     this.switchToTab("outline");
   }
 
-  async distillSource(project: Project, source: ProjectSource) {
-    const sourceFile = this.app.vault.getAbstractFileByPath(source.notePath);
-    if (!(sourceFile instanceof TFile)) return;
-    let sourceContent = await this.app.vault.read(sourceFile);
-    sourceContent = sourceContent.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-    const preview =
-      sourceContent.length > 500
-        ? sourceContent.substring(0, 500) + "\u2026"
-        : sourceContent;
-    this.distillHighlight(preview, sourceFile);
-    const idx = project.sources.findIndex(
-      (s) => s.notePath === source.notePath
-    );
-    if (idx >= 0 && project.sources[idx].status === "unread") {
-      project.sources[idx].status = "active";
-      await this.savePluginData();
-    }
-  }
 
   async quoteSelectionFromSource(
     project: Project,
@@ -689,22 +604,6 @@ export default class NoteAssemblerPlugin extends Plugin {
     new Notice(`Quoted from ${sourceName}`);
   }
 
-  async distillSelectionFromSource(
-    project: Project,
-    source: ProjectSource,
-    selection: string
-  ) {
-    const sourceFile = this.app.vault.getAbstractFileByPath(source.notePath);
-    if (!(sourceFile instanceof TFile)) return;
-    this.distillHighlight(selection, sourceFile);
-    const idx = project.sources.findIndex(
-      (s) => s.notePath === source.notePath
-    );
-    if (idx >= 0 && project.sources[idx].status === "unread") {
-      project.sources[idx].status = "active";
-      await this.savePluginData();
-    }
-  }
 
   // ── Parse h2 sections from file content ──
 
@@ -1378,18 +1277,18 @@ export default class NoteAssemblerPlugin extends Plugin {
   // ── Sample project ──
 
   async createSampleProject(): Promise<void> {
-    const filePath = "Cairn — Getting Started.md";
+    const filePath = "Throughline — Getting Started.md";
     const existing = this.app.vault.getAbstractFileByPath(filePath);
     if (existing) {
       new Notice("Sample project already exists");
       return;
     }
 
-    const sampleContent = `# Cairn — Getting Started
+    const sampleContent = `# Throughline — Getting Started
 
 ## What you're looking at
 
-This is a sample project — a real Cairn essay built with the plugin's own features. The sidebar on the right shows two sections: **Sources** (notes you've collected) and **Outline** (your essay structure).
+This is a sample project — a real Throughline essay built with the plugin's own features. The sidebar on the right shows two sections: **Sources** (notes you've collected) and **Outline** (your essay structure).
 
 **Try it now:** Click any card in the Outline to jump to that section.
 
@@ -1399,19 +1298,19 @@ In v0.4, notes go through a **source queue** before entering your essay:
 
 1. **Collect** — Right-click any note → "Send to sources", or drag from the file tree
 2. **Browse** — Click a source in the sidebar to preview it
-3. **Pull** — Select text → right-click → "Quote selection" or "Distill selection"
+3. **Pull** — Select text → right-click → "Quote selection"
 4. **Write** — Hit "Open Essay" and write the connective tissue
 
 The key insight: your sources stay separate from your writing until you deliberately pull something in.
 
 ## Pulling in content
 
-From the source preview, you have four options:
+From the source preview, you have two options:
 
 - **Quote selection** — select text, right-click → instant blockquote with [[source|*]] attribution
-- **Distill selection** — select text, right-click → write what it means to you
 - **Add as-is** — dump the whole note as a blockquote (for already-distilled notes)
-- **Distill first** — process the whole note through the Distill modal
+
+To turn a passage into a note in your own words first, use the **Flint** plugin's Distill.
 
 ## What to do next
 
@@ -1421,14 +1320,14 @@ From the source preview, you have four options:
 
 ## Sources
 
-- [[Cairn Documentation]]
+- [[Throughline Documentation]]
 `;
 
     await this.app.vault.create(filePath, sampleContent);
 
     const project: Project = {
       id: generateId(),
-      name: "Cairn — Getting Started",
+      name: "Throughline — Getting Started",
       filePath,
       sourceFolder: "",
       sources: [],
@@ -1562,233 +1461,13 @@ From the source preview, you have four options:
 
   // ── PDF selections ──
 
-  lastPdfSelection: (PdfSelection & { at: number }) | null = null;
 
   /** Text currently selected inside an open PDF view, with its page. */
-  readPdfSelection(): PdfSelection | null {
-    const sel = window.getSelection();
-    const raw = sel?.toString() ?? "";
-    if (!sel || !raw.trim() || !sel.anchorNode) return null;
-    const node =
-      sel.anchorNode instanceof Element
-        ? sel.anchorNode
-        : sel.anchorNode.parentElement;
-    const pageEl = node?.closest(".page[data-page-number]") as HTMLElement | null;
-    if (!pageEl) return null;
-    let file: TFile | null = null;
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      const v = leaf.view as any;
-      if (!file && v?.getViewType?.() === "pdf" && v.containerEl?.contains(pageEl)) {
-        file = v.file ?? null;
-      }
-    });
-    if (!file) return null;
-    return {
-      text: cleanPdfText(raw),
-      file,
-      page: Number(pageEl.dataset.pageNumber) || 0,
-      pageLabel: pageEl.dataset.pageLabel || "",
-    };
-  }
 
   /** Live PDF selection, or the one made in the last two minutes. */
-  currentPdfSelection(): PdfSelection | null {
-    const live = this.readPdfSelection();
-    if (live) return live;
-    const last = this.lastPdfSelection;
-    if (last && Date.now() - last.at < 2 * 60 * 1000) return last;
-    return null;
-  }
 
   /** The markdown note that links to this PDF (e.g. "Book- Title"). */
-  findPdfCompanionNote(pdf: TFile): TFile | null {
-    const links = this.app.metadataCache.resolvedLinks;
-    const candidates: TFile[] = [];
-    for (const [path, targets] of Object.entries(links)) {
-      if (targets[pdf.path]) {
-        const f = this.app.vault.getAbstractFileByPath(path);
-        if (f instanceof TFile && f.extension === "md") candidates.push(f);
-      }
-    }
-    // Prefer a note that names an author in its properties.
-    candidates.sort((a, b) => {
-      const fa = this.app.metadataCache.getFileCache(a)?.frontmatter;
-      const fb = this.app.metadataCache.getFileCache(b)?.frontmatter;
-      return Number(!!(fb?.author || fb?.Author)) - Number(!!(fa?.author || fa?.Author));
-    });
-    return candidates[0] ?? null;
-  }
 
-  /** Readwise-style metadata, falling back to the note's properties. */
-  noteMetadata(file: TFile, content: string): SourceMetadata {
-    const meta = parseSourceMetadata(content);
-    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (fm) {
-      if (!meta.author && (fm.author || fm.Author)) {
-        meta.author = String(fm.author ?? fm.Author).replace(/\[\[|\]\]/g, "");
-      }
-      if (!meta.title && fm.title) meta.title = String(fm.title);
-    }
-    return meta;
-  }
-
-  // ── Distill a highlight into an atomic note ──
-
-  async distillHighlight(
-    selection: string,
-    sourceFile: TFile,
-    pdf?: PdfSelection
-  ) {
-    let metadata: SourceMetadata;
-    let highlightMatch: HighlightMatch | null;
-    // Where the "Source:" link and the backlink go. For a PDF that's its
-    // companion note (the markdown note that links to it), if there is one.
-    let sourceNote: TFile | null = sourceFile;
-    if (sourceFile.extension === "pdf") {
-      sourceNote = this.findPdfCompanionNote(sourceFile);
-      metadata = sourceNote
-        ? this.noteMetadata(sourceNote, await this.app.vault.read(sourceNote))
-        : { title: "", author: "", url: "", category: "" };
-      if (!metadata.title) metadata.title = sourceFile.basename;
-      const page = pdf?.page;
-      const label = pdf?.pageLabel || (page ? String(page) : "");
-      highlightMatch = {
-        cleanText: selection,
-        linkMarkdown: page
-          ? `[[${sourceFile.path}#page=${page}|p.${label}]]`
-          : `[[${sourceFile.path}]]`,
-      };
-    } else {
-      const content = await this.app.vault.read(sourceFile);
-      metadata = this.noteMetadata(sourceFile, content);
-      highlightMatch = findMatchingHighlight(selection, content);
-    }
-    const defaultFolder = this.data.settings.distillDefaultFolder || "";
-
-    new DistillModal(
-      this.app,
-      selection,
-      metadata,
-      highlightMatch,
-      sourceFile,
-      defaultFolder,
-      this.data.settings.showProjectsInDistill ? this.activeProjects() : [],
-      this.data.activeProjectId,
-      this.data.settings.strikeAfterDistill,
-      async (idea, title, folder, selectedProjectIds, noteType, strike) => {
-        const safeName = sanitizeFilename(title);
-        if (!safeName) {
-          new Notice("Note title cannot be empty");
-          return;
-        }
-
-        const targetPath = folder
-          ? `${folder}/${safeName}.md`
-          : `${safeName}.md`;
-
-        if (this.app.vault.getAbstractFileByPath(targetPath)) {
-          new Notice(`File "${targetPath}" already exists`);
-          return;
-        }
-
-        const quoteText = highlightMatch
-          ? highlightMatch.cleanText
-          : selection.trim();
-        const lines: string[] = ["---", `type: ${noteType}`];
-        if (metadata.author && (noteType === "quote" || noteType === "concept")) {
-          lines.push(`author: "${metadata.author.replace(/"/g, "'")}"`);
-        }
-        lines.push("---", "");
-
-        if (idea.trim()) {
-          lines.push(idea.trim());
-        }
-
-        lines.push("");
-        lines.push("## Reference");
-        lines.push("");
-        lines.push(`> ${quoteText}`);
-        lines.push("");
-        lines.push(
-          sourceNote
-            ? `- Source: [[${sourceNote.basename}]]`
-            : `- Source: [[${sourceFile.path}]]`
-        );
-        if (metadata.author) {
-          lines.push(`- Author: ${metadata.author}`);
-        }
-        if (highlightMatch?.linkMarkdown) {
-          lines.push(`- ${highlightMatch.linkMarkdown}`);
-        }
-        lines.push("");
-
-        await this.app.vault.create(targetPath, lines.join("\n"));
-
-        if (this.data.settings.addBacklinkToSource && sourceNote) {
-          const sourceFile = sourceNote;
-          const sourceContent = await this.app.vault.read(sourceFile);
-          const notesHeading = "## Notes";
-          const backlinkLine = `- [[${safeName}]]`;
-
-          if (sourceContent.includes(notesHeading)) {
-            const notesIdx = sourceContent.indexOf(notesHeading);
-            const afterHeading = notesIdx + notesHeading.length;
-            const nextSection = sourceContent.indexOf(
-              "\n## ",
-              afterHeading
-            );
-            const insertPos =
-              nextSection !== -1 ? nextSection : sourceContent.length;
-            const updatedContent =
-              sourceContent.slice(0, insertPos).trimEnd() +
-              "\n" +
-              backlinkLine +
-              "\n" +
-              (nextSection !== -1
-                ? "\n" + sourceContent.slice(nextSection + 1)
-                : "");
-            await this.app.vault.modify(sourceFile, updatedContent);
-          } else {
-            const updatedContent =
-              sourceContent.trimEnd() +
-              "\n\n" +
-              notesHeading +
-              "\n\n" +
-              backlinkLine +
-              "\n";
-            await this.app.vault.modify(sourceFile, updatedContent);
-          }
-        }
-
-        if (selectedProjectIds.length > 0) {
-          const noteFile =
-            this.app.vault.getAbstractFileByPath(targetPath);
-          if (noteFile instanceof TFile) {
-            for (const projId of selectedProjectIds) {
-              const proj = this.data.projects.find((p) => p.id === projId);
-              if (proj) {
-                await this.addNoteToProject(proj, noteFile);
-              }
-            }
-          }
-        }
-
-        new Notice(`Created "${safeName}.md"`);
-
-        this.data.settings.strikeAfterDistill = strike;
-        await this.savePluginData();
-        if (strike) {
-          const flint = (this.app as any).plugins?.plugins?.flint;
-          const noteFile = this.app.vault.getAbstractFileByPath(targetPath);
-          if (flint?.openSpark && noteFile instanceof TFile) {
-            flint.openSpark(noteFile);
-          } else if (!flint) {
-            new Notice("Flint isn't enabled, so there's nothing to strike with.");
-          }
-        }
-      }
-    ).open();
-  }
 
   refreshView() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
@@ -1838,6 +1517,8 @@ class AssemblerView extends ItemView {
   private collapsedHeadings: Set<string> = new Set();
   previewSourceIndex: number | null = null;
   activeTab: "sources" | "outline" = "sources";
+  // One document-level listener at a time; re-renders replace it.
+  private selectionListener: (() => void) | null = null;
 
   debouncedRender = debounce(() => this.renderContent(), 300, true);
 
@@ -1851,7 +1532,19 @@ class AssemblerView extends ItemView {
   }
 
   getDisplayText() {
-    return "Cairn";
+    return "Throughline";
+  }
+
+  async onClose() {
+    this.setSelectionListener(null);
+  }
+
+  private setSelectionListener(listener: (() => void) | null) {
+    if (this.selectionListener) {
+      document.removeEventListener("selectionchange", this.selectionListener);
+    }
+    this.selectionListener = listener;
+    if (listener) document.addEventListener("selectionchange", listener);
   }
 
   getIcon() {
@@ -1863,19 +1556,20 @@ class AssemblerView extends ItemView {
   }
 
   async renderContent() {
+    this.setSelectionListener(null); // a closed preview must not keep listening
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass("note-assembler");
 
-    // ── Cairn branding ──
+    // ── Throughline branding ──
     const brand = container.createDiv({ cls: "na-brand" });
     const brandIcon = brand.createSpan({ cls: "na-brand-icon" });
     setIcon(brandIcon, "layers");
-    brand.createSpan({ cls: "na-brand-name", text: "Cairn" });
+    brand.createSpan({ cls: "na-brand-name", text: "Throughline" });
     const helpBtn = brand.createSpan({ cls: "na-brand-help" });
     setIcon(helpBtn, "help-circle");
     helpBtn.addEventListener("click", () => {
-      new CairnHelpModal(this.app).open();
+      new ThroughlineHelpModal(this.app).open();
     });
 
     const project = this.plugin.getActiveProject();
@@ -2284,13 +1978,6 @@ class AssemblerView extends ItemView {
         addAsIsBtn.addEventListener("click", () => {
           this.plugin.addSourceAsIs(project, capturedSource);
         });
-        const distillBtn = wholeRow.createEl("button", {
-          cls: "na-btn",
-          text: "\u2192 Distill to essay",
-        });
-        distillBtn.addEventListener("click", () => {
-          this.plugin.distillSource(project, capturedSource);
-        });
 
         // Row 2: selection actions (disabled until text selected)
         const selRow = previewActions.createDiv({
@@ -2315,22 +2002,6 @@ class AssemblerView extends ItemView {
             );
           }
         });
-        const distillSelBtn = selRow.createEl("button", {
-          cls: "na-btn",
-          text: "\u2192 Distill to essay",
-        });
-        distillSelBtn.disabled = true;
-        distillSelBtn.addEventListener("click", () => {
-          const sel = window.getSelection()?.toString()?.trim();
-          if (sel) {
-            this.plugin.distillSelectionFromSource(
-              project,
-              capturedSource,
-              sel
-            );
-          }
-        });
-
         // Enable selection buttons when text is selected in preview
         const updateSelectionButtons = () => {
           const sel = window.getSelection();
@@ -2339,9 +2010,8 @@ class AssemblerView extends ItemView {
             sel.toString().trim().length > 0 &&
             previewBody.contains(sel.anchorNode);
           quoteSelBtn.disabled = !hasSelection;
-          distillSelBtn.disabled = !hasSelection;
         };
-        document.addEventListener("selectionchange", updateSelectionButtons);
+        this.setSelectionListener(updateSelectionButtons);
       }
     }
 
@@ -2973,7 +2643,7 @@ class SourceSuggestModal extends FuzzySuggestModal<TFile> {
   }
 }
 
-// ── Note Suggest Modal (for Add Note — legacy, used by distill) ──
+// ── Note Suggest Modal (for Add Note) ──
 
 class NoteSuggestModal extends FuzzySuggestModal<TFile> {
   project: Project;
@@ -3077,14 +2747,14 @@ class TrackFileModal extends FuzzySuggestModal<TFile> {
 
 // ── Help Modal ──────────────────────────────────────────────
 
-class CairnHelpModal extends Modal {
+class ThroughlineHelpModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("cairn-help-modal");
 
-    contentEl.createEl("h2", { text: "Welcome to Cairn" });
+    contentEl.createEl("h2", { text: "Welcome to Throughline" });
     contentEl.createEl("p", {
-      text: "Cairn helps you compose essays from your notes. Think of it as a workbench — you gather source material, pull in the pieces you need, and arrange them into something new.",
+      text: "Throughline helps you compose essays from your notes. Think of it as a workbench — you gather source material, pull in the pieces you need, and arrange them into something new.",
     });
 
     const idea = contentEl.createDiv({ cls: "cairn-help-concept" });
@@ -3095,7 +2765,7 @@ class CairnHelpModal extends Modal {
       text: "atomic notes",
       href: "https://notes.andymatuschak.org/Evergreen_notes_should_be_atomic",
     }).setAttr("target", "_blank");
-    ideaP.appendText(" — small notes about single ideas — Cairn gives you a way to weave them into longer pieces. It's inspired by the ");
+    ideaP.appendText(" — small notes about single ideas — Throughline gives you a way to weave them into longer pieces. It's inspired by the ");
     ideaP.createEl("a", {
       text: "Zettelkasten",
       href: "https://zettelkasten.de/overview/",
@@ -3119,7 +2789,7 @@ class CairnHelpModal extends Modal {
       {
         num: "3",
         title: "Pull quotes into your essay",
-        body: "Open a source in the sidebar, read through it, and select the parts you want. Right-click your selection and choose \"Add quote to essay.\" Cairn drops it right into your draft.",
+        body: "Open a source in the sidebar, read through it, and select the parts you want. Right-click your selection and choose \"Add quote to essay.\" Throughline drops it right into your draft.",
       },
       {
         num: "4",
@@ -3146,16 +2816,16 @@ class CairnHelpModal extends Modal {
     const tipList = tips.createEl("ul");
 
     const distillTip = tipList.createEl("li");
-    distillTip.createEl("strong", { text: "Distill: " });
-    distillTip.appendText("Select any text and click the ✨ sparkles icon in the left sidebar to turn a highlight into its own note. Great for capturing ideas as you read.");
+    distillTip.createEl("strong", { text: "Distill lives in Flint: " });
+    distillTip.appendText("To turn a highlight into a note in your own words, install the Flint plugin. Its Distill can add the new note straight to an essay here.");
 
     const archiveTip = tipList.createEl("li");
     archiveTip.createEl("strong", { text: "Your notes are always yours: " });
-    archiveTip.appendText("Cairn never modifies your source notes. Your essay is a regular markdown file. If you stop using Cairn, everything stays exactly where it is.");
+    archiveTip.appendText("Throughline never modifies your source notes. Your essay is a regular markdown file. If you stop using Throughline, everything stays exactly where it is.");
 
     const folderTip = tipList.createEl("li");
     folderTip.createEl("strong", { text: "Essay folder: " });
-    folderTip.appendText("New essays are saved to your Cairn Essays folder (you can change this in settings).");
+    folderTip.appendText("New essays are saved to your Throughline Essays folder (you can change this in settings).");
 
     const close = contentEl.createDiv({ cls: "cairn-help-footer" });
     const closeBtn = close.createEl("button", {
@@ -3355,211 +3025,6 @@ class ExtractSelectionModal extends Modal {
   }
 }
 
-// ── Distill Highlight Modal ──────────────────────────────────
-
-class DistillModal extends Modal {
-  quote: string;
-  metadata: SourceMetadata;
-  highlightMatch: HighlightMatch | null;
-  sourceFile: TFile;
-  defaultFolder: string;
-  projects: Project[];
-  activeProjectId: string | null;
-  strikeDefault: boolean;
-  onSubmit: (
-    idea: string,
-    title: string,
-    folder: string,
-    selectedProjectIds: string[],
-    noteType: string,
-    strike: boolean
-  ) => void;
-
-  constructor(
-    app: App,
-    quote: string,
-    metadata: SourceMetadata,
-    highlightMatch: HighlightMatch | null,
-    sourceFile: TFile,
-    defaultFolder: string,
-    projects: Project[],
-    activeProjectId: string | null,
-    strikeDefault: boolean,
-    onSubmit: (
-      idea: string,
-      title: string,
-      folder: string,
-      selectedProjectIds: string[],
-      noteType: string,
-      strike: boolean
-    ) => void
-  ) {
-    super(app);
-    this.strikeDefault = strikeDefault;
-    this.quote = quote;
-    this.metadata = metadata;
-    this.highlightMatch = highlightMatch;
-    this.sourceFile = sourceFile;
-    this.defaultFolder = defaultFolder;
-    this.projects = projects;
-    this.activeProjectId = activeProjectId;
-    this.onSubmit = onSubmit;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Distill Highlight" });
-
-    let sourceText = this.metadata.title || this.sourceFile.basename;
-    if (this.metadata.author) {
-      sourceText += ` by ${this.metadata.author}`;
-    }
-    contentEl.createDiv({ cls: "fl-source-info", text: sourceText });
-
-    const quoteEl = contentEl.createDiv({ cls: "fl-quote" });
-    quoteEl.setText(this.quote);
-
-    const textarea = contentEl.createEl("textarea", {
-      cls: "fl-idea-textarea",
-      placeholder: "What does this mean to you?",
-    });
-
-    const titleInput = contentEl.createEl("input", {
-      type: "text",
-      cls: "fl-title-input",
-      placeholder: "Title: your idea as a full sentence",
-    });
-
-    const typeRow = contentEl.createDiv({ cls: "fl-type-row" });
-    typeRow.createEl("label", { text: "Type ", cls: "fl-project-label" });
-    const typeSelect = typeRow.createEl("select", { cls: "na-modal-input" });
-    for (const [value, label] of [
-      ["claim", "claim (your idea)"],
-      ["concept", "concept (a term)"],
-      ["quote", "quote (exact words)"],
-      ["anecdote", "anecdote (a story)"],
-    ]) {
-      typeSelect.createEl("option", { text: label, value });
-    }
-    typeSelect.value = "claim";
-
-    let titleManuallyEdited = false;
-    titleInput.addEventListener("input", () => {
-      titleManuallyEdited = true;
-    });
-
-    const updateTitle = debounce(
-      () => {
-        if (titleManuallyEdited) return;
-        const ideaText = textarea.value.trim();
-        if (ideaText) {
-          const suggested =
-            ideaText.length > 60
-              ? ideaText.substring(0, 60).replace(/\s+\S*$/, "")
-              : ideaText;
-          titleInput.value = suggested;
-        }
-      },
-      500,
-      true
-    );
-
-    textarea.addEventListener("input", () => {
-      updateTitle();
-    });
-
-    const folderSelect = contentEl.createEl("select", {
-      cls: "na-modal-input",
-    });
-    folderSelect.createEl("option", { text: "Vault root", value: "" });
-
-    const folders: string[] = [];
-    this.app.vault.getAllLoadedFiles().forEach((f) => {
-      if (f.children !== undefined && f.path !== "/") {
-        folders.push(f.path);
-      }
-    });
-    folders.sort();
-    for (const folder of folders) {
-      const opt = folderSelect.createEl("option", {
-        text: folder,
-        value: folder,
-      });
-      if (folder === this.defaultFolder) opt.selected = true;
-    }
-
-    const projectCheckboxes: Map<string, HTMLInputElement> = new Map();
-    if (this.projects.length > 0) {
-      const projectSection = contentEl.createDiv({
-        cls: "fl-project-section",
-      });
-      projectSection.createEl("label", {
-        cls: "fl-project-label",
-        text: "Add to essays:",
-      });
-      for (const project of this.projects) {
-        const checkRow = projectSection.createDiv({ cls: "fl-check-row" });
-        const cb = checkRow.createEl("input", { type: "checkbox" });
-        cb.id = `fl-project-${project.id}`;
-        cb.checked = project.id === this.activeProjectId;
-        const label = checkRow.createEl("label", { text: project.name });
-        label.setAttr("for", cb.id);
-        projectCheckboxes.set(project.id, cb);
-      }
-    }
-
-    const strikeRow = contentEl.createDiv({ cls: "fl-check-row" });
-    const strikeCb = strikeRow.createEl("input", { type: "checkbox" });
-    strikeCb.id = "fl-strike-after";
-    strikeCb.checked = this.strikeDefault;
-    strikeRow
-      .createEl("label", { text: "Then strike it in Flint (pair it with a lonely note)" })
-      .setAttr("for", strikeCb.id);
-
-    const btnRow = contentEl.createDiv({ cls: "na-modal-buttons" });
-    const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
-    cancelBtn.addEventListener("click", () => this.close());
-
-    const createBtn = btnRow.createEl("button", {
-      cls: "mod-cta",
-      text: "Create Note",
-    });
-
-    const submit = () => {
-      const title = titleInput.value.trim();
-      if (!title) {
-        new Notice("Note title cannot be empty");
-        return;
-      }
-      const selectedIds: string[] = [];
-      projectCheckboxes.forEach((cb, id) => {
-        if (cb.checked) selectedIds.push(id);
-      });
-      this.close();
-      this.onSubmit(
-        textarea.value,
-        title,
-        folderSelect.value,
-        selectedIds,
-        typeSelect.value,
-        strikeCb.checked
-      );
-    };
-
-    createBtn.addEventListener("click", submit);
-
-    titleInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") submit();
-    });
-
-    setTimeout(() => textarea.focus(), 50);
-  }
-
-  onClose() {
-    this.contentEl.empty();
-  }
-}
-
 // ── Settings Tab ────────────────────────────────────────────
 
 class NoteAssemblerSettingTab extends PluginSettingTab {
@@ -3574,7 +3039,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Cairn — Essay Composer" });
+    containerEl.createEl("h2", { text: "Throughline" });
 
     new Setting(containerEl)
       .setName("Essay folder")
@@ -3674,59 +3139,6 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Distill" });
-
-    new Setting(containerEl)
-      .setName("Default folder for distilled notes")
-      .setDesc("Where new notes from Distill Highlight are saved")
-      .addDropdown((dropdown) => {
-        dropdown.addOption("", "Vault root");
-        const folders: string[] = [];
-        this.app.vault.getAllLoadedFiles().forEach((f) => {
-          if (f.children !== undefined && f.path !== "/") {
-            folders.push(f.path);
-          }
-        });
-        folders.sort();
-        for (const folder of folders) {
-          dropdown.addOption(folder, folder);
-        }
-        dropdown
-          .setValue(this.plugin.data.settings.distillDefaultFolder)
-          .onChange(async (value) => {
-            this.plugin.data.settings.distillDefaultFolder = value;
-            await this.plugin.savePluginData();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Add backlink to source file")
-      .setDesc(
-        "After creating a note, append a link to it under a ## Notes section in the source file"
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.data.settings.addBacklinkToSource)
-          .onChange(async (value) => {
-            this.plugin.data.settings.addBacklinkToSource = value;
-            await this.plugin.savePluginData();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Show essay projects in Distill")
-      .setDesc(
-        "Show project checkboxes when distilling a highlight. Disable if you only use Distill without essays."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.data.settings.showProjectsInDistill)
-          .onChange(async (value) => {
-            this.plugin.data.settings.showProjectsInDistill = value;
-            await this.plugin.savePluginData();
-          })
-      );
-
     containerEl.createEl("h3", { text: "Tracked Projects" });
 
     const active = [...this.plugin.activeProjects()].sort(
@@ -3776,7 +3188,7 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Support" });
     const donateDesc = containerEl.createDiv({ cls: "na-settings-donate" });
     donateDesc.createSpan({
-      text: "Cairn is free and open source. If it helps your writing, consider leaving a tip.",
+      text: "Throughline is free and open source. If it helps your writing, consider leaving a tip.",
     });
     donateDesc.createEl("br");
     const link = donateDesc.createEl("a", {
@@ -3796,144 +3208,6 @@ class NoteAssemblerSettingTab extends PluginSettingTab {
     });
     ghLink.setAttr("target", "_blank");
   }
-}
-
-// ── Readwise / Distill Helpers ───────────────────────────────
-
-interface SourceMetadata {
-  title: string;
-  author: string;
-  url: string;
-  category: string;
-}
-
-function parseSourceMetadata(content: string): SourceMetadata {
-  const meta: SourceMetadata = {
-    title: "",
-    author: "",
-    url: "",
-    category: "",
-  };
-
-  const h1Match = content.match(/^# (.+)$/m);
-  if (h1Match) {
-    meta.title = h1Match[1].trim();
-  }
-
-  const metadataStart = content.indexOf("## Metadata");
-  if (metadataStart !== -1) {
-    const metadataEnd = content.indexOf("\n## ", metadataStart + 1);
-    const metadataBlock =
-      metadataEnd !== -1
-        ? content.slice(metadataStart, metadataEnd)
-        : content.slice(metadataStart);
-
-    const fullTitleMatch = metadataBlock.match(/^- Full Title:\s*(.+)$/m);
-    if (fullTitleMatch) {
-      meta.title = fullTitleMatch[1].trim();
-    }
-
-    const authorMatch = metadataBlock.match(/^- Author:\s*(.+)$/m);
-    if (authorMatch) {
-      meta.author = authorMatch[1].trim().replace(/\[\[|\]\]/g, "");
-    }
-
-    const urlMatch = metadataBlock.match(/^- URL:\s*(.+)$/m);
-    if (urlMatch) {
-      meta.url = urlMatch[1].trim();
-    }
-
-    const categoryMatch = metadataBlock.match(/^- Category:\s*(.+)$/m);
-    if (categoryMatch) {
-      meta.category = categoryMatch[1].trim().replace(/^#/, "");
-    }
-  }
-
-  return meta;
-}
-
-interface PdfSelection {
-  text: string;
-  file: TFile;
-  page: number;
-  pageLabel: string;
-}
-
-/** Undo PDF line breaks: rejoin hyphenated words, turn breaks into spaces. */
-function cleanPdfText(raw: string): string {
-  return raw
-    .replace(/(\w)-\s*\n\s*(\w)/g, "$1$2")
-    .replace(/\s*\n\s*/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-interface HighlightMatch {
-  cleanText: string;
-  linkMarkdown: string;
-}
-
-function findMatchingHighlight(
-  selection: string,
-  content: string
-): HighlightMatch | null {
-  const highlightsStart = content.indexOf("## Highlights");
-  if (highlightsStart === -1) return null;
-
-  const highlightsEnd = content.indexOf("\n## ", highlightsStart + 1);
-  const highlightsBlock =
-    highlightsEnd !== -1
-      ? content.slice(highlightsStart, highlightsEnd)
-      : content.slice(highlightsStart);
-
-  const lines = highlightsBlock.split("\n");
-  const bullets: string[] = [];
-  let current = "";
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("- ")) {
-      if (current) bullets.push(current);
-      current = line.slice(2);
-    } else if (current && line.startsWith("  ")) {
-      current += " " + line.trim();
-    } else if (line.trim() === "") {
-      if (current) bullets.push(current);
-      current = "";
-    }
-  }
-  if (current) bullets.push(current);
-
-  const normalizedSelection = selection.replace(/\s+/g, " ").trim();
-
-  for (const bullet of bullets) {
-    const normalizedBullet = bullet.replace(/\s+/g, " ").trim();
-    if (
-      !normalizedBullet.includes(normalizedSelection) &&
-      !normalizedSelection.includes(
-        normalizedBullet.replace(/\s*\(?\[.*$/, "").trim()
-      )
-    ) {
-      continue;
-    }
-
-    const linkMatch = bullet.match(
-      /\(\[(View Highlight|Location \d+)]\((https?:\/\/[^)]+)\)\)\s*$/
-    );
-    const linkMarkdown = linkMatch
-      ? `[${linkMatch[1]}](${linkMatch[2]})`
-      : "";
-
-    let cleanText = bullet;
-    if (linkMatch && linkMatch.index !== undefined) {
-      cleanText = bullet.slice(0, linkMatch.index).trim();
-    }
-    cleanText = cleanText.replace(/==/g, "");
-
-    return { cleanText, linkMarkdown };
-  }
-
-  return null;
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -3968,7 +3242,7 @@ function confirmModal(app: App, title: string, message: string): Promise<boolean
 
     const confirmBtn = btnRow.createEl("button", {
       cls: "na-btn na-btn-primary",
-      text: "Remove from Cairn",
+      text: "Remove from Throughline",
     });
     confirmBtn.addEventListener("click", () => {
       modal.close();

@@ -1,9 +1,9 @@
 {
   "id": "note-assembler",
-  "name": "Cairn — Essay Composer",
-  "version": "0.5.2",
-  "minAppVersion": "0.15.0",
-  "description": "Compose essays from your notes — pull from your Zettelkasten, arrange, extract, export. Built for atomic note workflows.",
+  "name": "Throughline",
+  "version": "0.6.0",
+  "minAppVersion": "1.7.2",
+  "description": "Compose essays from your notes: pull atomic notes and quotes into a draft, arrange the argument, and extract new ideas back out.",
   "author": "Maggie McGuire",
   "authorUrl": "https://moabsunnews.com",
   "fundingUrl": "https://venmo.com/KiKiBouba",

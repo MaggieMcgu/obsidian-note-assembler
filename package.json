@@ -1,7 +1,7 @@
 {
   "name": "note-assembler",
-  "version": "0.5.2",
-  "description": "Compose essays from your notes — pull, arrange, extract, export",
+  "version": "0.6.0",
+  "description": "Compose essays from your notes \u2014 pull, arrange, extract, export",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
